@@ -60,7 +60,7 @@
 > sono un cliente Fastweb con connessione FTTH e gateway **NeXXt One (FGA221D)**. L'assistenza mi ha confermato che sul mio account è attivo un **indirizzo IPv4 pubblico statico**, ma l'indirizzo non risulta assegnato alla mia linea. Di seguito i fatti tecnici verificati:
 >
 > 1. La WAN del NeXXt One ha l'indirizzo **10.64.23.145/22** (gateway 10.64.20.1), cioè un **indirizzo privato/CGNAT**, non quello pubblico. Un rinnovo DHCP forzato (riavvio dell'interfaccia WAN) non cambia l'assegnazione.
-> 2. L'indirizzo pubblico visibile in uscita è **8.8.8.8**, ma risulta solo un NAT in uscita: **nessuna connessione in ingresso raggiunge il CPE**.
+> 2. L'indirizzo pubblico visibile in uscita è **93.x.x.x**（你的公网 IPv4）, ma risulta solo un NAT in uscita: **nessuna connessione in ingresso raggiunge il CPE**.
 > 3. Ho configurato correttamente il port forwarding (UDP 51820 verso un host interno) e verificato che il firewall del CPE non è la causa: **i pacchetti in ingresso non arrivano proprio al CPE** (verificato con contatori firewall e tcpdump sul gateway).
 > 4. Anche IPv6 ha lo stesso problema: il prefisso 6rd assegnatomi (**2001:b07:a40:1791::/64**) incorpora proprio l'IPv4 privato 10.64.23.145, e i pacchetti IPv6 in ingresso (inclusi quelli incapsulati 6rd, protocollo 41) **non raggiungono mai il CPE**.
 >

@@ -3,6 +3,18 @@
 All notable changes to this project are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/), versioning is semver.
 
+## [1.3.0] - 2026-08-25
+
+### Added
+- **Scripted button login now works end-to-end** (`nexxt session login`): the
+  root cause of the old failure was found in the router sources
+  (`sessionmgr.lua`/`login.wat`) — the confirm step only authenticates the
+  most recently created session, so the client now mints a fresh session
+  before arming the button window. The HAR export step is no longer required
+  (kept as `import-cookie` fallback).
+- `session check/dump/import-cookie` now print human-readable output in
+  non-JSON mode.
+
 ## [1.2.0] - 2026-08-25
 
 ### Added

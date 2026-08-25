@@ -27,10 +27,15 @@ cd nexxt-one-toolkit
 ./nexxt probe
 #   compatibility: strong-front-end-match  stamps=['20260515082010']  ports={'22': 'refused', ...}
 
-# 2. Session: log in via browser (press the two side buttons), export HAR, import
-./nexxt session import-cookie /path/to/capture.har
-#   {"imported": true, "authenticated": true}
+# 2. Session: scripted button login (press BOTH side buttons for 3s when asked)
+./nexxt session login
+#   [login] fresh session created (must stay the latest — do not open
+#   [login] armed button wait (http 200)
+#   [login] press BOTH side buttons for 3s within 60s
+#   [login] button press detected
+#   [login] authenticated=True
 ./nexxt session dump              # read-only device snapshot
+#   (fallback: log in via browser, then `./nexxt session import-cookie <har|sessionID>`)
 
 # 3. Verify the injection exists (no persistent changes)
 ./nexxt verify

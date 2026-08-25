@@ -150,15 +150,22 @@ def main(argv: list[str] | None = None) -> int:
                     log("[login] already authenticated")
                     return rep.out({"authenticated": True})
                 ok = client.button_login(args.wait, log=log)
+                log(f"[login] authenticated={ok}")
                 return rep.out({"authenticated": ok}, 0 if ok else 1)
             if args.session_cmd == "check":
                 ok = client.is_authenticated()
+                if not args.json:
+                    print(f"authenticated: {ok}")
                 return rep.out({"authenticated": ok}, 0 if ok else 1)
             if args.session_cmd == "dump":
                 data = client.dump()
+                if not args.json:
+                    print(json.dumps(data, ensure_ascii=False, indent=2))
                 return rep.out(data)
             if args.session_cmd == "import-cookie":
                 ok = client.import_cookie(args.source)
+                if not args.json:
+                    print(f"imported, authenticated: {ok}")
                 return rep.out({"imported": True, "authenticated": ok}, 0 if ok else 1)
 
         if args.command == "verify":

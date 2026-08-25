@@ -43,9 +43,13 @@
   2. 轮询 `nvget=login_confirm&cmd=7` → `loginPath:"1"` = 检测到按键
   3. `act=nvset&service=login_confirm&cmd=7&loginPath=1`（状态机复位，返回 "0" 正常）
   4. `nvget=login_confirm&cmd=4` → `login_status:"1"` 即已认证
-- **已知坑**：脚本复现该流程能检测到按键，但 `login_status` 不一定变 1（会话疑似绑定
-  浏览器上下文）。**可靠做法**：浏览器登录一次 → 开发者工具导出 HAR →
-  `nexxt session import-cookie capture.har` 复用 sessionID。浏览器不退出登录，会话一直有效。
+- **脚本登录失败的根因（已解决）**：确认步骤只会认证**最新创建**的会话
+  （`sessionmgr.lua:newSession` 每建一个会话就写入 `uci.fastweb.sessions.@sessions.sessionid`，
+  `login.wat` 拿它和调用者比对）。如果有别人（比如浏览器标签页）在你之后建过会话，
+  确认就会静默失败。解法：清空本地 Cookie → 请求一次 `/login` 铸造全新会话 →
+  期间不要在浏览器打开路由器页面。`nexxt session login` 已自动完成这些。
+- **兜底**：浏览器登录一次，然后 `nexxt session import-cookie <sessionID|capture.har>`。
+  浏览器不退出登录，会话一直有效。
 
 ## 3. 命令注入（FW_058 已证实）
 

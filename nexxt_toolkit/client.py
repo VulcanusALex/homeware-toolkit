@@ -114,14 +114,26 @@ class NexxtClient:
                 "not authenticated; run 'nexxt session login' or "
                 "'nexxt session import-cookie <har>' first")
 
-    def button_login(self, wait_seconds: int = 60, log=print) -> bool:
-        """Reproduce the UI login: load /login, arm button wait, poll, confirm."""
+    def fresh_session(self) -> None:
+        """Drop the cookie jar so the router issues a NEW session.
+
+        The button-login confirm step only authenticates the session that was
+        created most recently (see sessionmgr.lua:newSession and login.wat),
+        so scripted login must start with a fresh cookie.
+        """
+        self.jar.clear()
         try:
             with self.opener.open(f"{self.base_url}/login", timeout=self.timeout) as resp:
                 resp.read(100_000)
-        except Exception as exc:
-            log(f"[login] warning: GET /login failed: {exc}")
+        except Exception:
+            pass
         self.save_cookies()
+
+    def button_login(self, wait_seconds: int = 60, log=print) -> bool:
+        """Reproduce the UI login: fresh session, arm button wait, poll, confirm."""
+        self.fresh_session()
+        log("[login] fresh session created (must stay the latest — do not open")
+        log("        the router page in a browser during this process)")
 
         status, data = self.set("login_confirm", cmd=7, loginPath=2)
         log(f"[login] armed button wait (http {status})")

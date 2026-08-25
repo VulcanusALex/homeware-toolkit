@@ -55,11 +55,18 @@ Note: `statusinfo` returns 404 on this firmware.
   3. `act=nvset&service=login_confirm&cmd=7&loginPath=1` (state reset; a `"0"`
      reply is normal)
   4. `nvget=login_confirm&cmd=4` → `login_status:"1"` when authenticated
-- **Known pitfall:** scripted reproduction of the handshake detects the button
-  press but the session does not always become authenticated (session seems
-  bound to browser context). **Reliable path:** log in once in a real browser,
-  export a HAR from devtools, then `nexxt session import-cookie capture.har`.
-  The session stays valid until the browser logs out.
+- **Root cause of scripted-login failure (solved):** the confirm step only
+  authenticates the session that was **created most recently**
+  (`sessionmgr.lua:newSession` records each new session in
+  `uci.fastweb.sessions.@sessions.sessionid`; `login.wat` compares it with the
+  caller's session). If anyone (e.g. a browser tab) created a session after
+  yours, the confirm silently does nothing. Fix: clear the local cookie jar,
+  request `/login` once to mint a fresh session, and don't open the router
+  page in a browser during login. `nexxt session login` does this
+  automatically.
+- **Fallback:** log in once in a real browser, then
+  `nexxt session import-cookie <sessionID|capture.har>`. The session stays
+  valid until the browser logs out.
 
 ## 3. Command injection (verified on FW_058)
 

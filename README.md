@@ -22,7 +22,9 @@ Everything is pure **Python 3.9+ stdlib** — no dependencies to install.
 | `tools/nexxt_session.py` | Session handling: button-assisted login attempt, HAR session-cookie import, read-only info dump |
 | `tools/nexxt_phaseb.py` | Non-persistent proof that the ping diagnostic executes injected commands (timing probe + short-lived `/tmp` marker, cleaned up) |
 | `tools/nexxt_transfer.py` | Reliable file transfer through the injection channel (segmented, content-filter-tolerant, oracle-verified) |
-| `tools/nexxt_ssh.py` | One-shot **bootstrap / status / teardown** of a persistent, key-only, LAN-only dropbear |
+| `tools/nexxt_ssh.py` | One-shot **bootstrap / status / run / teardown** of a persistent, key-only, LAN-only dropbear; `run` executes commands over SSH (no web session needed) |
+| `tools/nexxt_firewall.py` | Manage precise pinhole rules over SSH (**list / allow / delete**) — firewall stays ON |
+| `tools/nexxt_wanwatch.py` | Cron-friendly WAN watcher: detects when the ISP finally assigns a public IPv4 / when the 6rd prefix changes |
 
 Docs:
 
@@ -54,6 +56,13 @@ ssh -i ~/.ssh/nexxt_rsa -p 2222 \
 
 # 5. Undo everything (also restores root's original shell)
 python3 tools/nexxt_ssh.py teardown
+
+# Everyday operations over the persistent SSH service:
+python3 tools/nexxt_ssh.py run "ip6tables -L zone_wan_forward -nv" --key ~/.ssh/nexxt_rsa
+python3 tools/nexxt_firewall.py list --key ~/.ssh/nexxt_rsa
+python3 tools/nexxt_firewall.py allow --key ~/.ssh/nexxt_rsa \
+  --name Allow-AWG-v6 --proto udp --dest-ip 2001:db8::123 --dest-port 51820
+python3 tools/nexxt_wanwatch.py --key ~/.ssh/nexxt_rsa   # exit 0 once the WAN IPv4 is public
 ```
 
 ## Verified on

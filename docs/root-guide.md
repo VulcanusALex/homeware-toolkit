@@ -101,9 +101,10 @@ Measure the baseline first with `host=127.0.0.1`. Proven patterns:
 1. base64 → URL-safe alphabet (`+`→`-`, `/`→`_`).
 2. Split into ≤48-char segments; each goes to its own idempotent file
    (`printf %s <seg> | tee /tmp/nxseg_<tag>_NNN`).
-3. Verify each segment by oracle (content via `grep -qF` **and** length via
-   `wc -c`); retry, then bisect on persistent failure (`NNN`→`NNNa`/`NNNb`;
-   glob lexical order stays correct).
+3. Verify each segment with a single oracle round-trip: `grep -qFx <seg> <file>`
+   (the file has no trailing newline, so an exact full-line match proves both
+   content and length). Retry, then bisect on persistent failure
+   (`NNN`→`NNNa`/`NNNb`; glob lexical order stays correct).
 4. Assemble: `cat <parts> | tr '_-' '/+' | base64 -d | tee <target>`.
    - busybox `tr` treats a leading `-` as an option: use `tr '_-' '/+'`.
    - Keep each injected command short (~<200 chars); assemble in groups.

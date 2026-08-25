@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
-"""Bootstrap, inspect and tear down a key-only SSH service on a Fastweb
+"""Bootstrap, inspect, use and tear down a key-only SSH service on a Fastweb
 NeXXt One (FGA221D / GDNT-S) gateway that YOU own.
 
 Subcommands:
 
   bootstrap   Install your RSA public key and start a persistent dropbear
               instance on the LAN (default port 2222, key-only auth).
+              Use --test to verify the SSH handshake immediately.
   status      Show the dropbear instance state (config + listening port).
+  run         Execute a command on the gateway over the persistent SSH
+              service (no web session needed).
   teardown    Remove the instance and restore the original root shell.
 
 How it works (see docs/root-guide.md for the full story):
@@ -29,7 +32,6 @@ patched to /bin/ash, and restored by `teardown`.
 from __future__ import annotations
 
 import argparse
-import base64
 import hashlib
 import os
 import subprocess
@@ -43,6 +45,15 @@ from nexxt_transfer import Injector  # noqa: E402
 
 I = "${IFS}"
 INSTANCE = "nx"
+SSH_OPTS = [
+    "-o", "StrictHostKeyChecking=no",
+    "-o", "UserKnownHostsFile=/dev/null",
+    "-o", "ConnectTimeout=8",
+    "-o", "PreferredAuthentications=publickey",
+    "-o", "IdentitiesOnly=yes",
+    "-o", "HostKeyAlgorithms=+ssh-rsa",
+    "-o", "PubkeyAcceptedKeyTypes=+ssh-rsa",
+]
 
 
 def check_pubkey(path: str) -> bytes:
@@ -54,6 +65,10 @@ def check_pubkey(path: str) -> bytes:
             "2019.x and supports neither ed25519 nor ecdsa"
         )
     return (line + "\n").encode()
+
+
+def host_of(base_url: str) -> str:
+    return base_url.split("://", 1)[-1].split(":")[0].split("/")[0]
 
 
 class NexxtSSH(Injector):
@@ -68,7 +83,6 @@ class NexxtSSH(Injector):
 
     def install_key(self, keydata: bytes) -> None:
         parts = self.push(keydata, "sshkey")
-        # assemble in groups to keep commands short
         groups = [parts[i:i + 6] for i in range(0, len(parts), 6)]
         temps = []
         for gi, g in enumerate(groups):
@@ -81,6 +95,7 @@ class NexxtSSH(Injector):
         want = hashlib.md5(keydata).hexdigest()
         if not self.ask(f"md5sum{I}/etc/dropbear/authorized_keys|grep{I}-q{I}{want}"):
             raise RuntimeError("authorized_keys md5 mismatch after transfer")
+        self.do(f"mkdir{I}-p{I}/root/.ssh")
         self.do(f"cp{I}/etc/dropbear/authorized_keys{I}/root/.ssh/authorized_keys")
         self.do(f"chmod{I}600{I}/etc/dropbear/authorized_keys{I}/root/.ssh/authorized_keys")
         self.do(f"chmod{I}700{I}/root/.ssh")
@@ -117,24 +132,40 @@ class NexxtSSH(Injector):
               f"port {port} {'STILL LISTENING (check manually!)' if still else 'closed'}")
 
 
+def ssh_run(host: str, port: int, key: str, remote_cmd: str,
+            timeout: int = 30) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        ["ssh", "-i", key, "-p", str(port), *SSH_OPTS, f"root@{host}", remote_cmd],
+        capture_output=True, text=True, timeout=timeout)
+
+
 def cmd_bootstrap(args: argparse.Namespace) -> int:
     keydata = check_pubkey(args.pubkey)
-    inj = NexxtSSH()
+    inj = NexxtSSH(args.base_url)
     print(f"[ssh] baseline {inj.base:.1f}s", flush=True)
     inj.backup_and_patch_shell()
     print("[ssh] root shell ready", flush=True)
     inj.install_key(keydata)
     print("[ssh] public key installed (md5 verified)", flush=True)
     inj.create_instance(args.port)
-    host = args.base_url.split("://", 1)[-1].split(":")[0].split("/")[0]
-    print(f"\n[ssh] DONE. Connect with:")
+    host = host_of(args.base_url)
+    print("\n[ssh] DONE. Connect with:")
     print(f"  ssh -i <private_key> -p {args.port} "
           f"-o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedKeyTypes=+ssh-rsa root@{host}")
+    if args.test:
+        priv = args.privkey or args.pubkey.removesuffix(".pub")
+        print(f"[ssh] testing handshake with {priv} ...", flush=True)
+        proc = ssh_run(host, args.port, priv, "echo SSH_OK; id")
+        if "SSH_OK" in proc.stdout:
+            print(f"[ssh] handshake OK: {proc.stdout.strip().splitlines()[-1]}")
+        else:
+            print(f"[ssh] handshake FAILED: {proc.stderr.strip()}", file=sys.stderr)
+            return 1
     return 0
 
 
 def cmd_status(args: argparse.Namespace) -> int:
-    inj = NexxtSSH()
+    inj = NexxtSSH(args.base_url)
     up = inj.ask(f"netstat{I}-tln|grep{I}-q{I}:{args.port}")
     cfg = inj.ask(f"uci{I}-q{I}show{I}dropbear.{INSTANCE}")
     key = inj.ask(f"test{I}-s{I}/etc/dropbear/authorized_keys")
@@ -144,8 +175,17 @@ def cmd_status(args: argparse.Namespace) -> int:
     return 0 if up else 1
 
 
+def cmd_run(args: argparse.Namespace) -> int:
+    host = host_of(args.base_url)
+    proc = ssh_run(host, args.port, args.key, args.remote_command,
+                   timeout=args.timeout)
+    sys.stdout.write(proc.stdout)
+    sys.stderr.write(proc.stderr)
+    return proc.returncode
+
+
 def cmd_teardown(args: argparse.Namespace) -> int:
-    inj = NexxtSSH()
+    inj = NexxtSSH(args.base_url)
     inj.teardown(args.port)
     return 0
 
@@ -158,32 +198,29 @@ def main() -> int:
     sub = parser.add_subparsers(dest="command", required=True)
     p_boot = sub.add_parser("bootstrap", help="install key and start persistent SSH")
     p_boot.add_argument("--pubkey", required=True, help="path to your RSA public key")
+    p_boot.add_argument("--privkey", help="private key for --test (default: pubkey minus .pub)")
     p_boot.add_argument("--port", type=int, default=2222)
+    p_boot.add_argument("--test", action="store_true",
+                        help="verify the SSH handshake right after bootstrap")
     p_stat = sub.add_parser("status", help="show SSH service state")
     p_stat.add_argument("--port", type=int, default=2222)
+    p_run = sub.add_parser("run", help="run a command on the gateway over SSH")
+    p_run.add_argument("remote_command")
+    p_run.add_argument("--key", required=True, help="path to your RSA private key")
+    p_run.add_argument("--port", type=int, default=2222)
+    p_run.add_argument("--timeout", type=int, default=30)
     p_down = sub.add_parser("teardown", help="remove SSH service and restore root shell")
     p_down.add_argument("--port", type=int, default=2222)
     args = parser.parse_args()
 
-    # Injector binds its own client; rebind to custom base URL if given.
-    orig = NexxtSSH.__init__
-
-    def patched(self, *a, **kw):
-        orig(self, *a, **kw)
-        self.client = NexxtClient(args.base_url, timeout=10.0)
-        if not self.client.is_authenticated():
-            raise RuntimeError("not authenticated; run nexxt_session.py login "
-                               "or import a session cookie first")
-    NexxtSSH.__init__ = patched
-    try:
-        if args.command == "bootstrap":
-            return cmd_bootstrap(args)
-        if args.command == "status":
-            return cmd_status(args)
-        if args.command == "teardown":
-            return cmd_teardown(args)
-    finally:
-        NexxtSSH.__init__ = orig
+    if args.command == "bootstrap":
+        return cmd_bootstrap(args)
+    if args.command == "status":
+        return cmd_status(args)
+    if args.command == "run":
+        return cmd_run(args)
+    if args.command == "teardown":
+        return cmd_teardown(args)
     return 2
 
 

@@ -1,0 +1,35 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  sanity:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Compile all tools
+        run: python -m py_compile tools/*.py
+      - name: CLI smoke tests
+        run: |
+          python tools/nexxt_probe.py --help >/dev/null
+          python tools/nexxt_session.py --help >/dev/null
+          python tools/nexxt_phaseb.py --help >/dev/null
+          python tools/nexxt_transfer.py 2>&1 | grep -q usage
+          python tools/nexxt_ssh.py --help >/dev/null
+          python tools/nexxt_ssh.py run --help >/dev/null
+          python tools/nexxt_firewall.py --help >/dev/null
+          python tools/nexxt_wanwatch.py --help >/dev/null
+      - name: Import graph check
+        run: |
+          PYTHONPATH=tools python -c "
+          import nexxt_probe, nexxt_session, nexxt_phaseb, nexxt_transfer
+          import nexxt_ssh, nexxt_firewall, nexxt_wanwatch
+          print('imports OK')"

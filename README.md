@@ -101,6 +101,7 @@ firmware fingerprint guard), `--version`.
 Docs:
 
 - [docs/root-guide.md](docs/root-guide.md) — full technical guide (EN)
+- [docs/quickstart.zh-CN.md](docs/quickstart.zh-CN.md) — 新用户逐步图文指南（推荐先读）
 - [docs/root-guide.zh-CN.md](docs/root-guide.zh-CN.md) — 完整中文指南
 - [docs/fastweb-notes.md](docs/fastweb-notes.md) — Fastweb network findings
   (CGNAT IPv4, 6rd inbound filtering) and how to talk to support
@@ -128,6 +129,7 @@ Ping 诊断命令注入的无持久化验证、经该通道的可靠文件传输
 **持久化、仅密钥、仅 LAN** 的 SSH 服务（可随时 teardown 完全还原）、
 精确防火墙 pinhole 管理、以及 WAN 公网 IP 下发监控。
 统一入口 `./nexxt`，`./nexxt doctor` 一键体检告诉你卡在哪一步。
+新用户建议从 [docs/quickstart.zh-CN.md](docs/quickstart.zh-CN.md)（逐步图文）开始。
 **仅限用于你自己的设备**。完整中文文档见
 [docs/root-guide.zh-CN.md](docs/root-guide.zh-CN.md)。
 

@@ -87,7 +87,7 @@ class TestTransferBisect(unittest.TestCase):
 
 class TestWanClassify(unittest.TestCase):
     def test_private(self):
-        self.assertEqual(wanwatch.classify_v4("10.64.23.145"), "private-RFC1918")
+        self.assertEqual(wanwatch.classify_v4("10.62.0.1"), "private-RFC1918")
         self.assertEqual(wanwatch.classify_v4("192.168.1.254"), "private-RFC1918")
 
     def test_cgnat(self):

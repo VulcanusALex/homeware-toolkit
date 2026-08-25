@@ -84,7 +84,7 @@ ssh -i ~/.ssh/nexxt_rsa -p 2222 \
 - 全绿：一切就绪；
 - 某步 FAIL：后面跟着的 `→` 会告诉你怎么修；
 - `wan-public-ipv4: FAIL` 是**运营商侧**问题（不是设备问题），
-  详见 [fastweb-notes.md](fastweb-notes.md)。
+  详见 [fastweb-notes.zh-CN.md](fastweb-notes.zh-CN.md)。
 
 ## 日常用法
 
@@ -116,5 +116,5 @@ ssh -i ~/.ssh/nexxt_rsa -p 2222 \
 ## 下一步
 
 - 完整原理与机制：[root-guide.zh-CN.md](root-guide.zh-CN.md)
-- 运营商网络侧（CGNAT/6rd）调查：[fastweb-notes.md](fastweb-notes.md)
+- 运营商网络侧（CGNAT/6rd）调查：[fastweb-notes.zh-CN.md](fastweb-notes.zh-CN.md)
 - 英文版指南：[root-guide.md](root-guide.md)

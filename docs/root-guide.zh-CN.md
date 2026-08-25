@@ -151,7 +151,7 @@ ssh -i <私钥> -p 2222 \
 | 注入命令"没执行" | `>` 被剥（用 tee）/ 内容过滤（二分）/ 沙盒网络命名空间（网络操作注定失败） |
 | 长请求被静默忽略 | host 长度/内容限制——拆短 |
 | dropbear 起来了但密钥被拒 | ed25519 不支持（用 RSA）；文件须以换行结尾；`/bin/restricted_shell` 会挡登录 |
-| 外网 IPv6 连接被 refused | 上游（运营商 6rd）代答，与设备无关——见 docs/fastweb-notes.md |
+| 外网 IPv6 连接被 refused | 上游（运营商 6rd）代答，与设备无关——见 docs/fastweb-notes.zh-CN.md |
 | 传输后文件内容不对 | 迟到/乱序执行覆盖了正确内容——重新审计分段并重写坏段 |
 
 ## 9. FAQ

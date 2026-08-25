@@ -102,10 +102,11 @@ firmware fingerprint guard), `--version`.
 
 Docs:
 
+- [docs/quickstart.md](docs/quickstart.md) — step-by-step illustrated quickstart (EN, start here)
 - [docs/root-guide.md](docs/root-guide.md) — full technical guide (EN)
 - [docs/quickstart.zh-CN.md](docs/quickstart.zh-CN.md) — 新用户逐步图文指南（推荐先读）
 - [docs/root-guide.zh-CN.md](docs/root-guide.zh-CN.md) — 完整中文指南
-- [docs/fastweb-notes.md](docs/fastweb-notes.md) — Fastweb network findings
+- [docs/fastweb-notes.md](docs/fastweb-notes.md) — Fastweb network findings (EN) / [中文版](docs/fastweb-notes.zh-CN.md)
   (CGNAT IPv4, 6rd inbound filtering) and how to talk to support
 
 ## Verified on

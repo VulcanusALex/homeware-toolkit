@@ -133,6 +133,18 @@ Ping 诊断命令注入的无持久化验证、经该通道的可靠文件传输
 **仅限用于你自己的设备**。完整中文文档见
 [docs/root-guide.zh-CN.md](docs/root-guide.zh-CN.md)。
 
+## Sintesi italiana
+
+Toolkit open-source per il gateway **Fastweb NeXXt One** (FGA221D / GDNT-S):
+sondaggio di compatibilità in sola lettura, verifica non distruttiva della
+command injection nel diagnostico ping, trasferimento file affidabile tramite
+quel canale, e installazione di un servizio **SSH persistente, solo-chiave,
+solo-LAN** (con `teardown` per il ripristino completo), gestione di regole
+firewall precise e monitoraggio dell'assegnazione dell'IPv4 pubblico.
+Login con un comando + pressione dei due pulsanti laterali; `./nexxt doctor`
+mostra subito cosa manca. **Da usare solo sul proprio dispositivo.**
+Guida completa (inglese): [docs/root-guide.md](docs/root-guide.md).
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

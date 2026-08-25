@@ -12,6 +12,8 @@ and bootstrapping a **persistent key-only SSH service** on a device **you own**.
 
 Everything is pure **Python 3.9+ stdlib** — no dependencies to install.
 
+![demo](docs/images/demo.gif)
+
 > ⚠️ **Use only on your own device.** Every privileged step requires an
 > authenticated web session, which requires pressing the physical buttons on
 > the gateway. This is an owner-side toolkit, not a remote exploit — see

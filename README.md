@@ -1,5 +1,9 @@
 # nexxt-one-toolkit
 
+[![ci](https://github.com/VulcanusALex/nexxt-one-toolkit/actions/workflows/ci.yml/badge.svg)](https://github.com/VulcanusALex/nexxt-one-toolkit/actions/workflows/ci.yml)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![python: 3.9+](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org)
+
 Open-source toolkit for the **Fastweb NeXXt One** residential gateway
 (Technicolor/Vantiva **FGA221D**, board **GDNT-S**, firmware branch `22.2.0378`),
 covering compatibility probing, a non-destructive verification of the ping
@@ -8,23 +12,86 @@ and bootstrapping a **persistent key-only SSH service** on a device **you own**.
 
 Everything is pure **Python 3.9+ stdlib** — no dependencies to install.
 
-> ⚠️ **Use only on your own device.** This toolkit exists so owners can
-> inspect and control hardware they paid for (see
-> [docs/root-guide.md](docs/root-guide.md) for the safety model). It is not a
-> remote exploit: every privileged step requires an authenticated web session,
-> which in turn requires pressing the physical buttons on the gateway.
+> ⚠️ **Use only on your own device.** Every privileged step requires an
+> authenticated web session, which requires pressing the physical buttons on
+> the gateway. This is an owner-side toolkit, not a remote exploit — see
+> [SECURITY.md](SECURITY.md).
 
-## What you get
+## Quick start
 
-| Tool | Purpose |
+```bash
+git clone https://github.com/VulcanusALex/nexxt-one-toolkit.git
+cd nexxt-one-toolkit
+
+# 1. Read-only compatibility probe (no login, no changes)
+./nexxt probe
+#   compatibility: strong-front-end-match  stamps=['20260515082010']  ports={'22': 'refused', ...}
+
+# 2. Session: log in via browser (press the two side buttons), export HAR, import
+./nexxt session import-cookie /path/to/capture.har
+#   {"imported": true, "authenticated": true}
+./nexxt session dump              # read-only device snapshot
+
+# 3. Verify the injection exists (no persistent changes)
+./nexxt verify
+#   [verify] baseline 2.3s
+#   [verify] timing-sleep 12.4s
+#   ...
+#   backend command execution: CONFIRMED
+
+# 4. Persistent key-only SSH on the LAN (RSA key required — dropbear is 2019.x)
+ssh-keygen -t rsa -b 2048 -f ~/.ssh/nexxt_rsa
+./nexxt ssh bootstrap --pubkey ~/.ssh/nexxt_rsa.pub --test
+#   [ssh] root shell ready
+#   [ssh] public key installed (md5 verified)
+#   [ssh] handshake OK
+ssh -i ~/.ssh/nexxt_rsa -p 2222 \
+  -o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedKeyTypes=+ssh-rsa \
+  root@192.168.1.254
+
+# 5. Health check at any time — tells you exactly what is missing
+./nexxt doctor --key ~/.ssh/nexxt_rsa
+#   [✓] web-ui-compatibility: PASS strong-front-end-match
+#   [-] web-session: SKIP no valid session  → nexxt session login ...
+#   [✓] ssh-service: PASS port 2222 reachable with key
+#   [✗] wan-public-ipv4: FAIL private-RFC1918  → inbound blocked at ISP (CGNAT) ...
+
+# 6. Everyday operations over the persistent SSH service
+./nexxt ssh run "ip6tables -L zone_wan_forward -nv" --key ~/.ssh/nexxt_rsa
+./nexxt fw list --key ~/.ssh/nexxt_rsa
+./nexxt fw allow --key ~/.ssh/nexxt_rsa \
+  --name Allow-AWG-v6 --proto udp --dest-ip 2001:db8::123 --dest-port 51820
+./nexxt wanwatch --key ~/.ssh/nexxt_rsa   # exit 0 once the WAN IPv4 is public
+
+# 7. Undo everything (also restores root's original shell)
+./nexxt ssh teardown
+```
+
+Install as a package if you prefer (`pipx` recommended):
+
+```bash
+pipx install .
+nexxt --help
+```
+
+## The toolkit
+
+| Command | Purpose |
 |---|---|
-| `tools/nexxt_probe.py` | Unauthenticated, read-only compatibility check of the web UI (safe first step) |
-| `tools/nexxt_session.py` | Session handling: button-assisted login attempt, HAR session-cookie import, read-only info dump |
-| `tools/nexxt_phaseb.py` | Non-persistent proof that the ping diagnostic executes injected commands (timing probe + short-lived `/tmp` marker, cleaned up) |
-| `tools/nexxt_transfer.py` | Reliable file transfer through the injection channel (segmented, content-filter-tolerant, oracle-verified) |
-| `tools/nexxt_ssh.py` | One-shot **bootstrap / status / run / teardown** of a persistent, key-only, LAN-only dropbear; `run` executes commands over SSH (no web session needed) |
-| `tools/nexxt_firewall.py` | Manage precise pinhole rules over SSH (**list / allow / delete**) — firewall stays ON |
-| `tools/nexxt_wanwatch.py` | Cron-friendly WAN watcher: detects when the ISP finally assigns a public IPv4 / when the 6rd prefix changes |
+| `nexxt probe` | Unauthenticated, read-only compatibility check (safe first step) |
+| `nexxt doctor` | End-to-end health check with per-stage hints |
+| `nexxt session` | Button-assisted login, HAR cookie import, read-only dump |
+| `nexxt verify` | Non-persistent proof of command injection (timing probe + short-lived `/tmp` marker, cleaned up) |
+| `nexxt transfer` | Reliable file transfer through the injection channel (segmented, content-filter-tolerant, oracle-verified) |
+| `nexxt ssh` | **bootstrap / status / run / teardown** of the persistent, key-only, LAN-only dropbear |
+| `nexxt fw` | Precise firewall pinhole rules over SSH — firewall stays ON |
+| `nexxt wanwatch` | Cron-friendly watcher: detects when the ISP finally assigns a public IPv4 / the 6rd prefix changes |
+
+Legacy entry points (`tools/nexxt_probe.py`, `tools/nexxt_session.py`, …) still
+work and forward to the unified CLI.
+
+Global flags: `--json` (machine-readable), `--quiet`, `--force` (skip the
+firmware fingerprint guard), `--version`.
 
 Docs:
 
@@ -33,42 +100,12 @@ Docs:
 - [docs/fastweb-notes.md](docs/fastweb-notes.md) — Fastweb network findings
   (CGNAT IPv4, 6rd inbound filtering) and how to talk to support
 
-## Quick start
-
-```bash
-# 1. Read-only compatibility probe (no login, no changes)
-python3 tools/nexxt_probe.py
-
-# 2. Get a session: log in via browser (press the two side buttons),
-#    export HAR from devtools, then import the sessionID
-python3 tools/nexxt_session.py import-cookie /path/to/capture.har
-python3 tools/nexxt_session.py dump            # read-only device snapshot
-
-# 3. Verify the injection exists (no persistent changes)
-python3 tools/nexxt_phaseb.py
-
-# 4. Persistent key-only SSH on the LAN (RSA key required, dropbear is 2019.x)
-ssh-keygen -t rsa -b 2048 -f ~/.ssh/nexxt_rsa
-python3 tools/nexxt_ssh.py bootstrap --pubkey ~/.ssh/nexxt_rsa.pub
-ssh -i ~/.ssh/nexxt_rsa -p 2222 \
-  -o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedKeyTypes=+ssh-rsa \
-  root@192.168.1.254
-
-# 5. Undo everything (also restores root's original shell)
-python3 tools/nexxt_ssh.py teardown
-
-# Everyday operations over the persistent SSH service:
-python3 tools/nexxt_ssh.py run "ip6tables -L zone_wan_forward -nv" --key ~/.ssh/nexxt_rsa
-python3 tools/nexxt_firewall.py list --key ~/.ssh/nexxt_rsa
-python3 tools/nexxt_firewall.py allow --key ~/.ssh/nexxt_rsa \
-  --name Allow-AWG-v6 --proto udp --dest-ip 2001:db8::123 --dest-port 51820
-python3 tools/nexxt_wanwatch.py --key ~/.ssh/nexxt_rsa   # exit 0 once the WAN IPv4 is public
-```
-
 ## Verified on
 
 - NeXXt One `FGA221DFWB` / `GDNT-S`, firmware `22.2.0378_FW_058_FGA221D`
   (community report covers FW_056; the issue persists on FW_058).
+  Other firmware? Please open a
+  [compatibility report](https://github.com/VulcanusALex/nexxt-one-toolkit/issues/new?template=compatibility_report.md).
 
 ## Safety model
 
@@ -82,8 +119,10 @@ python3 tools/nexxt_wanwatch.py --key ~/.ssh/nexxt_rsa   # exit 0 once the WAN I
 ## 中文摘要
 
 本项目是 Fastweb NeXXt One 网关（FGA221D / GDNT-S）的开源工具箱：只读兼容性探测、
-Ping 诊断命令注入的无持久化验证、经该通道的可靠文件传输，以及一键部署
-**持久化、仅密钥、仅 LAN** 的 SSH 服务（可随时 teardown 完全还原）。
+Ping 诊断命令注入的无持久化验证、经该通道的可靠文件传输、一键部署
+**持久化、仅密钥、仅 LAN** 的 SSH 服务（可随时 teardown 完全还原）、
+精确防火墙 pinhole 管理、以及 WAN 公网 IP 下发监控。
+统一入口 `./nexxt`，`./nexxt doctor` 一键体检告诉你卡在哪一步。
 **仅限用于你自己的设备**。完整中文文档见
 [docs/root-guide.zh-CN.md](docs/root-guide.zh-CN.md)。
 

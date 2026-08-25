@@ -15,21 +15,27 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Compile all tools
-        run: python -m py_compile tools/*.py
+      - name: Compile everything
+        run: python -m py_compile nexxt_toolkit/*.py tools/*.py nexxt
+      - name: Unit tests
+        run: python -m unittest discover -s tests -v
       - name: CLI smoke tests
         run: |
+          ./nexxt --version
+          ./nexxt --help >/dev/null
+          ./nexxt probe --help >/dev/null
+          ./nexxt doctor --help >/dev/null
+          ./nexxt session --help >/dev/null
+          ./nexxt ssh --help >/dev/null
+          ./nexxt ssh run --help >/dev/null
+          ./nexxt fw --help >/dev/null
+          ./nexxt wanwatch --help >/dev/null
           python tools/nexxt_probe.py --help >/dev/null
-          python tools/nexxt_session.py --help >/dev/null
-          python tools/nexxt_phaseb.py --help >/dev/null
-          python tools/nexxt_transfer.py 2>&1 | grep -q usage
           python tools/nexxt_ssh.py --help >/dev/null
-          python tools/nexxt_ssh.py run --help >/dev/null
-          python tools/nexxt_firewall.py --help >/dev/null
-          python tools/nexxt_wanwatch.py --help >/dev/null
       - name: Import graph check
         run: |
-          PYTHONPATH=tools python -c "
-          import nexxt_probe, nexxt_session, nexxt_phaseb, nexxt_transfer
-          import nexxt_ssh, nexxt_firewall, nexxt_wanwatch
+          python -c "
+          import nexxt_toolkit.cli, nexxt_toolkit.doctor, nexxt_toolkit.firewall
+          import nexxt_toolkit.inject, nexxt_toolkit.probe, nexxt_toolkit.ssh
+          import nexxt_toolkit.transfer, nexxt_toolkit.verify, nexxt_toolkit.wanwatch
           print('imports OK')"

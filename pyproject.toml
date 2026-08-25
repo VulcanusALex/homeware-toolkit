@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nexxt-one-toolkit"
+version = "1.2.0"
+description = "Owner-side toolkit for the Fastweb NeXXt One gateway (FGA221D/GDNT-S): probe, injection verification, reliable transfer, persistent key-only SSH, firewall pinholes, WAN watcher"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.9"
+authors = [{name = "nexxt-one-toolkit contributors"}]
+keywords = ["fastweb", "nexxt", "fga221d", "gdnt-s", "router", "ssh", "ipv6", "6rd"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Topic :: System :: Networking",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/VulcanusALex/nexxt-one-toolkit"
+Documentation = "https://github.com/VulcanusALex/nexxt-one-toolkit/tree/main/docs"
+Issues = "https://github.com/VulcanusALex/nexxt-one-toolkit/issues"
+
+[project.scripts]
+nexxt = "nexxt_toolkit.cli:main"
+
+[tool.setuptools]
+packages = ["nexxt_toolkit"]

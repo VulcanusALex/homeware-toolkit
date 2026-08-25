@@ -58,7 +58,7 @@ Note: `statusinfo` returns 404 on this firmware.
 - **Known pitfall:** scripted reproduction of the handshake detects the button
   press but the session does not always become authenticated (session seems
   bound to browser context). **Reliable path:** log in once in a real browser,
-  export a HAR from devtools, then `nexxt_session.py import-cookie capture.har`.
+  export a HAR from devtools, then `nexxt session import-cookie capture.har`.
   The session stays valid until the browser logs out.
 
 ## 3. Command injection (verified on FW_058)
@@ -96,7 +96,7 @@ Measure the baseline first with `host=127.0.0.1`. Proven patterns:
 `test -f`, `grep -q`, `wc -c <f> | grep -q '^393'`, `md5sum <f> | grep -q <hash>`,
 `netstat -tln | grep -q :2222`, `test $(id -u) -eq 0`.
 
-## 5. Reliable file transfer (`tools/nexxt_transfer.py`)
+## 5. Reliable file transfer ((unified CLI: `nexxt transfer`))
 
 1. base64 → URL-safe alphabet (`+`→`-`, `/`→`_`).
 2. Split into ≤48-char segments; each goes to its own idempotent file
@@ -113,7 +113,7 @@ Measure the baseline first with `host=127.0.0.1`. Proven patterns:
    land later and clobber a newer correct file (observed). Re-audit after
    transferring.
 
-## 6. Persistent SSH (`tools/nexxt_ssh.py`)
+## 6. Persistent SSH ((unified CLI: `nexxt ssh`))
 
 What `bootstrap` does (all reversible):
 
@@ -195,7 +195,7 @@ ssh -i <key> -p 2222 \
 
 - Restore root shell: `sed -i 's#^\(root:.*:\)[^:]*$#\1/bin/restricted_shell#' /etc/passwd`
   (or `cp /tmp/nx_passwd.bak /etc/passwd` before reboot).
-- Remove SSH: `python3 tools/nexxt_ssh.py teardown`.
+- Remove SSH: `./nexxt ssh teardown`.
 - `/tmp` artifacts vanish on reboot; to wipe now: `rm -f /tmp/nx* /tmp/k*.b64`.
 - Browser HAR files contain the `sessionID` and possibly VoIP credentials
   (`deviceinfo` leaks a base64 SIP password) — delete them after use.

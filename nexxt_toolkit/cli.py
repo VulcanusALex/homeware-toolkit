@@ -16,7 +16,9 @@ Commands:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import os
 import sys
 
 from . import __version__
@@ -117,6 +119,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_ww.add_argument("--port", type=int, default=2222)
     p_ww.add_argument("--state-file",
                       default="~/.nexxt_wanwatch_state.json")
+    p_ww.add_argument("--notify", action="store_true",
+                      help="desktop notification on change (macOS; no-op elsewhere)")
     return p
 
 
@@ -179,11 +183,20 @@ def main(argv: list[str] | None = None) -> int:
 
         if args.command == "transfer":
             from . import transfer as transfer_mod
+            from .inject import I
+            try:
+                with open(args.file, "rb") as fh:
+                    data = fh.read()
+            except OSError as exc:
+                raise RuntimeError(f"cannot read {args.file}: {exc}") from exc
             inj = Injector(NexxtClient(args.base_url), force=args.force, log=log)
-            data = open(args.file, "rb").read()
             parts = transfer_mod.push_data(inj, data, args.tag)
-            transfer_mod.assemble(inj, parts, args.target)
-            return rep.out({"target": args.target, "parts": len(parts)})
+            transfer_mod.assemble(inj, parts, args.target,
+                                  expect_md5=hashlib.md5(data).hexdigest())
+            inj.do(f"rm{I}-f{I}/tmp/nxseg_{args.tag}_*")
+            log(f"[transfer] {args.target} written and md5-verified")
+            return rep.out({"target": args.target, "parts": len(parts),
+                            "md5_verified": True})
 
         if args.command == "ssh":
             from . import ssh as ssh_mod
@@ -247,7 +260,8 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "wanwatch":
             from . import wanwatch as ww_mod
             report, code = ww_mod.watch(host_of(args.base_url), args.port, args.key,
-                                        args.state_file.replace("~", __import__("os").path.expanduser("~")))
+                                        os.path.expanduser(args.state_file),
+                                        notify=args.notify)
             return rep.out(report, code)
 
     except SessionExpired as exc:

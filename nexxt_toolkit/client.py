@@ -17,8 +17,10 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+from . import __version__
+
 DEFAULT_BASE_URL = "https://192.168.1.254"
-USER_AGENT = "nexxt-one-toolkit/1.2 (own-network diagnostics)"
+USER_AGENT = f"nexxt-one-toolkit/{__version__} (own-network diagnostics)"
 
 READ_ONLY_SERVICES = (
     "sysinfo", "wanstatusinfo", "wwanstatusinfo", "lan_status", "laninfo",
@@ -161,7 +163,8 @@ class NexxtClient:
         """Import sessionID from a HAR export path or a raw cookie value."""
         sid = None
         if os.path.exists(source):
-            har = json.load(open(source))
+            with open(source) as fh:
+                har = json.load(fh)
             for entry in har.get("log", {}).get("entries", []):
                 for header in entry.get("request", {}).get("headers", []):
                     if header.get("name", "").lower() == "cookie":

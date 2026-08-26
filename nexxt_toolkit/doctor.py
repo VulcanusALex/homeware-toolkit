@@ -13,14 +13,6 @@ from .wanwatch import classify_v4
 PASS, FAIL, SKIP = "PASS", "FAIL", "SKIP"
 
 
-def _wan_class_from_dump(dump: dict) -> str | None:
-    try:
-        wan_ip = dump["wanstatusinfo"]["data"]["wanstatusinfo"]["wan_ip"]
-        return classify_v4(wan_ip)
-    except (KeyError, TypeError):
-        return None
-
-
 def _wan_class(ip: str) -> str:
     try:
         return classify_v4(ip)

@@ -8,6 +8,10 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+from . import __version__
+
+USER_AGENT = f"nexxt-one-toolkit/{__version__}"
+
 ASSETS = (
     "/login",
     "/app/app.js",
@@ -21,7 +25,7 @@ import socket  # noqa: E402
 
 def fetch(base_url: str, path: str, timeout: float) -> dict:
     url = urllib.parse.urljoin(base_url.rstrip("/") + "/", path.lstrip("/"))
-    request = urllib.request.Request(url, headers={"User-Agent": "nexxt-one-toolkit/1.2"},
+    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT},
                                      method="GET")
     context = ssl._create_unverified_context()
     try:
@@ -64,13 +68,16 @@ def inspect_assets(items: dict) -> dict:
         "ipv6_validator_found": ipv6_pattern is not None,
         "ipv6_validator_start_anchored": bool(ipv6_pattern and ipv6_pattern.startswith("^")),
         "ipv6_validator_end_anchored": bool(ipv6_pattern and ipv6_pattern.endswith("$")),
+        # Short-circuit: when ipv6_pattern is None (older/different firmware,
+        # or asset fetch failed — exactly the case this probe must REPORT),
+        # `and` stops before None.startswith(...) instead of raising.
         "compatibility_signal": (
             "strong-front-end-match"
-            if all(("apiServiceUrl', '/status.cgi'" in combined,
-                    "api.set('pingstatus', data)" in status_js,
-                    ipv6_pattern is not None,
-                    not ipv6_pattern.startswith("^"),
-                    not ipv6_pattern.endswith("$")))
+            if ("apiServiceUrl', '/status.cgi'" in combined
+                and "api.set('pingstatus', data)" in status_js
+                and ipv6_pattern is not None
+                and not ipv6_pattern.startswith("^")
+                and not ipv6_pattern.endswith("$"))
             else "incomplete-match"
         ),
     }

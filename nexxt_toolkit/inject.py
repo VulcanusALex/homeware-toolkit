@@ -54,7 +54,12 @@ class Injector:
         if dry_run:
             self.base = 2.3
             return
-        self.base, _ = run_ping(self.client, "127.0.0.1")
+        # Two samples, take the max: a single sample can read low on a lucky
+        # fast request and make the oracle threshold too sensitive (verify.py
+        # uses the same two-sample-max baseline for the same reason).
+        b1, _ = run_ping(self.client, "127.0.0.1")
+        b2, _ = run_ping(self.client, "127.0.0.1")
+        self.base = max(b1, b2)
 
     def _guard(self) -> None:
         status, data = self.client.get("sysinfo")

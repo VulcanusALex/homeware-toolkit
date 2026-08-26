@@ -18,6 +18,9 @@ It does:
   (this is the known command-injection issue on this platform);
 - transfer locally generated files (your SSH public key) to the device;
 - start a key-only, password-less, LAN-only SSH service.
+- keep a root-only persistent ownership record so rollback removes only the
+  key and account change made by this toolkit;
+- observe named firewall counters and audit configuration/runtime state.
 
 It does not:
 
@@ -26,6 +29,7 @@ It does not:
 - download or execute third-party code on the device;
 - exfiltrate data anywhere — session cookies and keys stay in the local
   `.work/` directory (gitignored).
+- upload support bundles automatically — the user reviews and attaches them.
 
 ## Vulnerability disclosure
 
@@ -51,6 +55,12 @@ publication, following coordinated disclosure practices.
 - The SSH instance installed by `bootstrap` is key-only, on a LAN high port,
   with password and root-password auth disabled. The ISP's own
   `dropbear.wan` management instance is never modified.
-- `teardown` removes the instance and restores the original root shell.
+- Bootstrap appends its recorded key and preserves unrelated authorized keys.
+  State under `/etc/nexxt-toolkit/` is mode 0700/0600 and survives reboot.
+- `teardown` removes only toolkit-owned state and restores the exact original
+  root account line. Unowned legacy changes are refused unless explicitly
+  adopted.
 - Browser HAR captures contain your `sessionID` and may contain VoIP
   credentials returned by the `deviceinfo` API — delete them after use.
+- `support-bundle` uses a strict sysinfo allowlist and redacts credentials,
+  sessions, MACs, serials and raw IP addresses; still review it before sharing.

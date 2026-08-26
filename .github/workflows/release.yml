@@ -5,14 +5,38 @@ on:
     types: [published]
 
 jobs:
-  pypi:
+  build-and-publish:
     runs-on: ubuntu-latest
     permissions:
       id-token: write   # PyPI trusted publishing (configure on PyPI first)
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install build twine && python -m build && twine check dist/*
+      - name: Verify release tag matches package version
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          VERSION="$(python -c 'from nexxt_toolkit import __version__; print(__version__)')"
+          test "v${VERSION}" = "${RELEASE_TAG}"
+      - name: Build wheel and source distribution
+        run: pip install build twine && python -m build && twine check dist/*
+      - name: Build standalone zipapp and checksums
+        run: |
+          mkdir -p build/zipapp/nexxt_toolkit
+          cp nexxt_toolkit/*.py build/zipapp/nexxt_toolkit/
+          printf '%s\n' 'from nexxt_toolkit.cli import main' 'raise SystemExit(main())' > build/zipapp/__main__.py
+          mkdir -p release-assets
+          python -m zipapp build/zipapp -p '/usr/bin/env python3' -o release-assets/nexxt.pyz
+          chmod +x release-assets/nexxt.pyz
+          cp dist/* release-assets/
+          cd release-assets
+          sha256sum nexxt* > SHA256SUMS
+      - name: Upload GitHub Release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "${RELEASE_TAG}" release-assets/* --clobber
       - uses: pypa/gh-action-pypi-publish@release/v1

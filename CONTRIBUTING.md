@@ -34,8 +34,8 @@ python -m unittest discover -s tests -v   # run the test suite
 ## Hardware notes
 
 If you have a NeXXt One on a different firmware version, compatibility
-reports (output of `./nexxt probe`) are valuable — please open an issue with
-the (sanitized) JSON.
+reports are valuable. Run `./nexxt support-bundle`, review `report.json`, and
+attach the ZIP to a compatibility issue. Do not paste a session dump or HAR.
 
 ## Releasing
 

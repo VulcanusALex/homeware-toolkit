@@ -8,7 +8,9 @@ Open-source toolkit for the **Fastweb NeXXt One** residential gateway
 (Technicolor/Vantiva **FGA221D**, board **GDNT-S**, firmware branch `22.2.0378`),
 covering compatibility probing, a non-destructive verification of the ping
 diagnostic command-injection issue, reliable file transfer over that channel,
-and bootstrapping a **persistent key-only SSH service** on a device **you own**.
+bootstrapping a **persistent key-only SSH service**, observing real inbound
+traffic, auditing firewall/upgrade state, and producing sanitized support
+bundles on a device **you own**.
 
 Everything is pure **Python 3.9+ stdlib** — no dependencies to install.
 
@@ -25,59 +27,37 @@ Everything is pure **Python 3.9+ stdlib** — no dependencies to install.
 git clone https://github.com/VulcanusALex/nexxt-one-toolkit.git
 cd nexxt-one-toolkit
 
-# 1. Read-only compatibility probe (no login, no changes)
-./nexxt probe
-#   compatibility: strong-front-end-match  stamps=['20260515082010']  ports={'22': 'refused', ...}
+# Guided path: probe → physical-button login → harmless verification →
+# local RSA key generation → confirmed persistent SSH. Shows the exact
+# persistent change and asks before applying it.
+./nexxt setup
 
-# 2. Session: scripted button login (press BOTH side buttons for 3s when asked)
-./nexxt session login
-#   [login] fresh session created (must stay the latest — do not open
-#   [login] armed button wait (http 200)
-#   [login] press BOTH side buttons for 3s within 60s
-#   [login] button press detected
-#   [login] authenticated=True
-./nexxt session dump              # read-only device snapshot
-#   (fallback: log in via browser, then `./nexxt session import-cookie <har|sessionID>`)
+# The generated private key is ~/.nexxt-one-toolkit/id_rsa
+./nexxt doctor --key ~/.nexxt-one-toolkit/id_rsa
+# Optional: explicitly contact api4/api6.ipify.org for public egress addresses
+./nexxt doctor --key ~/.nexxt-one-toolkit/id_rsa --check-egress
 
-# 3. Verify the injection exists (no persistent changes)
-./nexxt verify
-#   [verify] baseline 2.3s
-#   [verify] timing-sleep 12.4s
-#   ...
-#   backend command execution: CONFIRMED
-
-# 4. Persistent key-only SSH on the LAN (RSA key required — dropbear is 2019.x)
-ssh-keygen -t rsa -b 2048 -f ~/.ssh/nexxt_rsa
-./nexxt ssh bootstrap --pubkey ~/.ssh/nexxt_rsa.pub --test
-#   [ssh] root shell ready
-#   [ssh] public key installed (md5 verified)
-#   [ssh] handshake OK
-ssh -i ~/.ssh/nexxt_rsa -p 2222 \
-  -o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedKeyTypes=+ssh-rsa \
-  root@192.168.1.254
-
-# 5. Health check at any time — tells you exactly what is missing
-./nexxt doctor --key ~/.ssh/nexxt_rsa
-#   [✓] web-ui-compatibility: PASS strong-front-end-match
-#   [-] web-session: SKIP no valid session  → nexxt session login ...
-#   [✓] ssh-service: PASS port 2222 reachable with key
-#   [✗] wan-public-ipv4: FAIL private-RFC1918  → inbound blocked at ISP (CGNAT) ...
-
-# 6. Everyday operations over the persistent SSH service
-./nexxt ssh run "ip6tables -L zone_wan_forward -nv" --key ~/.ssh/nexxt_rsa
-./nexxt fw list --key ~/.ssh/nexxt_rsa
-./nexxt fw allow --key ~/.ssh/nexxt_rsa \
+# Idempotent, transactional firewall rule (firewall remains enabled)
+./nexxt fw ensure --key ~/.nexxt-one-toolkit/id_rsa \
   --name Allow-AWG-v6 --proto udp --dest-ip 2001:db8::123 --dest-port 51820
-./nexxt wanwatch --key ~/.ssh/nexxt_rsa   # exit 0 once the WAN IPv4 is public
 
-# 7. Undo everything (also restores root's original shell)
+# Start a new connection from outside during this window. A positive counter
+# delta proves that traffic reached the gateway; zero is reported as unknown.
+./nexxt inbound observe --key ~/.nexxt-one-toolkit/id_rsa \
+  --rule Allow-AWG-v6 --wait 30
+
+# Post-OTA/security audit and a safe issue attachment
+./nexxt audit-update --key ~/.nexxt-one-toolkit/id_rsa
+./nexxt support-bundle --key ~/.nexxt-one-toolkit/id_rsa
+
+# Exact rollback: removes only toolkit-owned state and its own key
 ./nexxt ssh teardown
 ```
 
-Install as a package if you prefer (`pipx` recommended):
+Install from PyPI (`pipx` recommended) or directly from a clone:
 
 ```bash
-pipx install .
+pipx install nexxt-one-toolkit
 nexxt --help
 ```
 
@@ -86,12 +66,16 @@ nexxt --help
 | Command | Purpose |
 |---|---|
 | `nexxt probe` | Unauthenticated, read-only compatibility check (safe first step) |
+| `nexxt setup` | Guided, transactional path from probe to tested SSH; generates a compatible key locally |
 | `nexxt doctor` | End-to-end health check with per-stage hints |
 | `nexxt session` | Button-assisted login, HAR cookie import, read-only dump |
 | `nexxt verify` | Non-persistent proof of command injection (timing probe + short-lived `/tmp` marker, cleaned up) |
 | `nexxt transfer` | Reliable file transfer through the injection channel (segmented, content-filter-tolerant, oracle-verified) |
-| `nexxt ssh` | **bootstrap / status / run / teardown** of the persistent, key-only, LAN-only dropbear |
-| `nexxt fw` | Precise firewall pinhole rules over SSH — firewall stays ON |
+| `nexxt ssh` | Non-destructive **bootstrap / status / run / teardown** with persistent ownership records and exact key rollback |
+| `nexxt fw` | Precise pinholes plus idempotent `ensure` and runtime `audit` — firewall stays ON |
+| `nexxt inbound observe` | Watch a named firewall rule during a fresh external connection; never mistakes no observation for proof of blocking |
+| `nexxt audit-update` | Post-OTA audit of fingerprint, SSH policy, rollback state and firewall runtime |
+| `nexxt support-bundle` | Issue-ready ZIP/JSON with a strict field allowlist and automatic redaction |
 | `nexxt wanwatch` | Cron-friendly watcher: detects when the ISP finally assigns a public IPv4 / the 6rd prefix changes |
 
 Legacy entry points (`tools/nexxt_probe.py`, `tools/nexxt_session.py`, …) still
@@ -107,7 +91,7 @@ Docs:
 - [docs/quickstart.zh-CN.md](docs/quickstart.zh-CN.md) — 新用户逐步图文指南（推荐先读）
 - [docs/root-guide.zh-CN.md](docs/root-guide.zh-CN.md) — 完整中文指南
 - [docs/fastweb-notes.md](docs/fastweb-notes.md) — Fastweb network findings (EN) / [中文版](docs/fastweb-notes.zh-CN.md)
-  (CGNAT IPv4, 6rd inbound filtering) and how to talk to support
+  (private WAN, upstream NAT/1:1 NAT, 6rd, inbound evidence) and how to talk to support
 
 ## Verified on
 
@@ -123,15 +107,20 @@ Docs:
 - No password changes, no firmware flashing, no TR-069 changes, no boot-bank
   changes.
 - The SSH instance is key-only, password auth disabled, LAN high port only.
-- `teardown` removes the instance and restores `/bin/restricted_shell`.
+- Existing authorized keys are preserved. The toolkit records only its own key
+  and original root account line in a root-only persistent state directory.
+- `teardown` removes only toolkit-owned state and restores the recorded shell.
+- Upgrading an installation made by v1.4.0 or older requires the explicit
+  `--adopt-legacy` migration flag; the tool refuses to guess ownership.
 
 ## 中文摘要
 
 本项目是 Fastweb NeXXt One 网关（FGA221D / GDNT-S）的开源工具箱：只读兼容性探测、
 Ping 诊断命令注入的无持久化验证、经该通道的可靠文件传输、一键部署
 **持久化、仅密钥、仅 LAN** 的 SSH 服务（可随时 teardown 完全还原）、
-精确防火墙 pinhole 管理、以及 WAN 公网 IP 下发监控。
-统一入口 `./nexxt`，`./nexxt doctor` 一键体检告诉你卡在哪一步。
+精确防火墙管理、真实入站计数观察、OTA 后安全审计、脱敏支持包与 WAN 状态监控。
+统一入口 `./nexxt`；新用户可直接运行 `./nexxt setup`，已有用户用
+`./nexxt doctor`、`fw audit` 和 `audit-update` 体检。
 新用户建议从 [docs/quickstart.zh-CN.md](docs/quickstart.zh-CN.md)（逐步图文）开始。
 **仅限用于你自己的设备**。完整中文文档见
 [docs/root-guide.zh-CN.md](docs/root-guide.zh-CN.md)。
@@ -143,8 +132,9 @@ sondaggio di compatibilità in sola lettura, verifica non distruttiva della
 command injection nel diagnostico ping, trasferimento file affidabile tramite
 quel canale, e installazione di un servizio **SSH persistente, solo-chiave,
 solo-LAN** (con `teardown` per il ripristino completo), gestione di regole
-firewall precise e monitoraggio dell'assegnazione dell'IPv4 pubblico.
-Login con un comando + pressione dei due pulsanti laterali; `./nexxt doctor`
+firewall precise e idempotenti, verifica del traffico in ingresso, audit dopo
+gli aggiornamenti e report di supporto anonimizzati. `./nexxt setup` guida il
+login con i due pulsanti, la verifica e l'installazione; `./nexxt doctor`
 mostra subito cosa manca. **Da usare solo sul proprio dispositivo.**
 Guida completa (inglese): [docs/root-guide.md](docs/root-guide.md).
 

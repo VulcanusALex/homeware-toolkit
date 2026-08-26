@@ -24,11 +24,15 @@ jobs:
           ./nexxt --version
           ./nexxt --help >/dev/null
           ./nexxt probe --help >/dev/null
+          ./nexxt setup --help >/dev/null
           ./nexxt doctor --help >/dev/null
           ./nexxt session --help >/dev/null
           ./nexxt ssh --help >/dev/null
           ./nexxt ssh run --help >/dev/null
           ./nexxt fw --help >/dev/null
+          ./nexxt inbound observe --help >/dev/null
+          ./nexxt support-bundle --help >/dev/null
+          ./nexxt audit-update --help >/dev/null
           ./nexxt wanwatch --help >/dev/null
           python tools/nexxt_probe.py --help >/dev/null
           python tools/nexxt_ssh.py --help >/dev/null
@@ -36,6 +40,9 @@ jobs:
         run: |
           python -c "
           import nexxt_toolkit.cli, nexxt_toolkit.doctor, nexxt_toolkit.firewall
+          import nexxt_toolkit.audit, nexxt_toolkit.egress, nexxt_toolkit.inbound
+          import nexxt_toolkit.setup
+          import nexxt_toolkit.support
           import nexxt_toolkit.inject, nexxt_toolkit.probe, nexxt_toolkit.ssh
           import nexxt_toolkit.transfer, nexxt_toolkit.verify, nexxt_toolkit.wanwatch
           print('imports OK')"

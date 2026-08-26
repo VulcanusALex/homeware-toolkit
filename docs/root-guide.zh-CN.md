@@ -95,10 +95,10 @@ host = :::::::;<条件> && sleep${IFS}8
 
 `bootstrap` 做的事（全部可逆）：
 
-1. 备份 `/etc/passwd` 到 `/tmp/nx_passwd.bak`，把 root shell 从 `/bin/restricted_shell`
-   改为 `/bin/ash`（必需；overlayfs 持久）。
-2. 把你的 **RSA** 公钥传到 `/etc/dropbear/authorized_keys`（md5 校验）和
-   `/root/.ssh/authorized_keys`。
+1. 把 root 原始账户行以 0600 权限保存到 `/etc/nexxt-toolkit/`，再把 shell 从
+   `/bin/restricted_shell` 改为 `/bin/ash`；回滚记录重启后仍在。
+2. 端到端校验 **RSA** 公钥，记录本工具拥有的精确一行，再追加到两个授权文件；
+   不覆盖任何既有密钥。
 3. 创建 UCI dropbear 实例：`enable=1`、`Port=2222`、`Interface=lan`、
    `PasswordAuth=off`、`RootPasswordAuth=off`；提交并 `/etc/init.d/dropbear restart`。
 
@@ -117,7 +117,9 @@ ssh -i <私钥> -p 2222 \
   root@192.168.1.254
 ```
 
-`teardown` 删除实例与密钥，并把 root shell 还原为 `/bin/restricted_shell`。
+`teardown` 删除实例、只移除本工具记录的密钥，并恢复安装前保存的完整 root 账户行。
+v1.4.0 或更早安装没有持久所有权记录，需要用 `ssh bootstrap ... --adopt-legacy`
+明确迁移一次；没有这个许可时，工具拒绝猜测和破坏性清理。
 
 ## 7. 防火墙真相与精确放行
 
@@ -143,6 +145,14 @@ ssh -i <私钥> -p 2222 \
 
   落地在 `zone_wan_forward`，重启与防火墙重载后均存活。
 
+日常优先使用 `nexxt fw ensure`：同名规则会幂等更新，修改前备份 firewall UCI，
+重载失败会自动恢复。`nexxt fw audit` 检查重名、过宽 WAN 放行和未落到运行表的规则。
+
+真实入站测试使用 `nexxt inbound observe --rule 名称 --key 私钥`，在窗口内从外网
+**新建**连接。计数增加可证明包已到网关；零增量只表示“未观察到”，不能证明阻断，
+因为客户端没发包、硬件快转和上游过滤都可能导致零计数。WAN 是私网地址本身也不能证明
+CGNAT 阻断，运营商仍可能提供上游 1:1 NAT。
+
 ## 8. 排障速查
 
 | 现象 | 原因 / 处理 |
@@ -151,20 +161,23 @@ ssh -i <私钥> -p 2222 \
 | 注入命令"没执行" | `>` 被剥（用 tee）/ 内容过滤（二分）/ 沙盒网络命名空间（网络操作注定失败） |
 | 长请求被静默忽略 | host 长度/内容限制——拆短 |
 | dropbear 起来了但密钥被拒 | ed25519 不支持（用 RSA）；文件须以换行结尾；`/bin/restricted_shell` 会挡登录 |
-| 外网 IPv6 连接被 refused | 上游（运营商 6rd）代答，与设备无关——见 docs/fastweb-notes.zh-CN.md |
+| 入站观察为 `not-observed` | 结论未知；从外网新建流量，并检查硬件快转和上游状态 |
+| 旧 SSH 修改没有所有权记录 | 只有确认由 v1.4.0 或更早工具创建时才用 `--adopt-legacy` |
 | 传输后文件内容不对 | 迟到/乱序执行覆盖了正确内容——重新审计分段并重写坏段 |
 
 ## 9. FAQ
 
 - **需要物理接触吗？** 需要——会话来自机身按键（或复用按键建立的会话）。
 - **会变砖吗？** 本指南不涉及 flash 布局、固件镜像、启动 bank、TR-069。teardown 可还原。
-- **固件升级后还有效吗？** 当作无效处理，先重跑 probe。
+- **固件升级后还有效吗？** 当作无效处理，运行 `nexxt audit-update --key 私钥`，
+  它会记录固件指纹并检查 SSH 策略、持久回滚状态和防火墙运行态。
 - **运营商的 dropbear.wan？** 别碰，它限制在运营商网段且有 2FA。
 
 ## 10. 恢复与安全
 
-- 还原 root shell：`sed -i 's#^\(root:.*:\)[^:]*$#\1/bin/restricted_shell#' /etc/passwd`
-  （或重启前 `cp /tmp/nx_passwd.bak /etc/passwd`）。
-- 移除 SSH：`./nexxt ssh teardown`。
+- 首选恢复方式：`./nexxt ssh teardown`，它依据持久所有权记录精确还原，并保留无关密钥。
+- `--legacy-force` 只适用于已确认的 v1.4.0 或更早安装；它会使用旧版整文件清理行为。
 - `/tmp` 产物重启自清；立即清理：`rm -f /tmp/nx* /tmp/k*.b64`。
 - 浏览器 HAR 含 `sessionID`，还可能含 VoIP 凭据（`deviceinfo` 会泄露 base64 的 SIP 密码）——用完删除。
+- 提公开 issue 前运行 `nexxt support-bundle`；它只允许安全固件字段，并自动删除 Cookie、
+  凭据、MAC、序列号和原始 IP。上传前仍要人工查看 `report.json`。

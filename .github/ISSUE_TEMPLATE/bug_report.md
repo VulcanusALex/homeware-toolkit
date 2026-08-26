@@ -21,6 +21,9 @@ paste the exact command and full output (sanitize cookies/keys/IPs)
 - Gateway model/firmware (`./nexxt session dump` sysinfo, if available):
 - `./nexxt probe` compatibility_signal:
 
+If possible, attach the ZIP produced by `./nexxt support-bundle` after
+reviewing `report.json`.
+
 **Checklist**
 - [ ] I am using this on a device I own
 - [ ] I removed cookies, keys and personal addresses from the output

@@ -1,5 +1,5 @@
-from .cli import main
-
 import sys
+
+from .cli import main
 
 sys.exit(main())

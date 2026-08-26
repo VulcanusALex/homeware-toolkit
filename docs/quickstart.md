@@ -19,6 +19,18 @@ cd nexxt-one-toolkit
 > Run every `./nexxt` command below from the repo root. On native Windows
 > cmd, use `python nexxt_toolkit/cli.py` instead (or just use WSL).
 
+## Guided path (recommended)
+
+One command performs the numbered steps below, generates a compatible RSA key
+under `~/.nexxt-one-toolkit/`, shows the persistent change, asks for consent,
+and rolls back automatically if the final SSH handshake fails:
+
+```bash
+./nexxt setup
+```
+
+Use the manual steps below when you want to inspect each stage separately.
+
 ## Step 1: read-only probe (30 seconds, zero risk)
 
 No login, no changes — confirm your device is compatible:
@@ -67,9 +79,19 @@ Generate an **RSA** key first (the router's dropbear is from 2019 and
 
 ![step 4](images/step4-bootstrap.png)
 
-The tool automatically: backs up and patches the root shell → transfers the
-public key in verified segments → creates a key-only, LAN-only dropbear
-instance → restarts the service → **verifies the handshake itself**.
+The tool automatically: stores the original root account line in a persistent,
+root-only ownership directory → patches the shell → appends (never overwrites)
+its recorded public key → creates a key-only, LAN-only dropbear instance →
+restarts the service → **verifies the handshake itself**.
+
+If the device was bootstrapped by toolkit v1.4.0 or older, migrate it once:
+
+```bash
+./nexxt ssh bootstrap --pubkey ~/.ssh/nexxt_rsa.pub --test --adopt-legacy
+```
+
+Without that explicit flag, an unowned pre-existing `dropbear.nx` or patched
+root shell is left untouched.
 
 `handshake OK` means you can connect:
 
@@ -90,23 +112,30 @@ One command tells you exactly which stage is good/bad/missing:
 
 - All green: everything ready;
 - Any FAIL: the trailing `→` tells you how to fix it;
-- `wan-public-ipv4: FAIL` is an **ISP-side** issue (not your device) — see
-  [fastweb-notes.md](fastweb-notes.md).
+- `wan-ipv4-assignment: INFO private-RFC1918` describes address assignment;
+  it does **not** claim inbound is blocked. An ISP may provide upstream 1:1
+  NAT. Use the inbound observer for direct evidence.
+- `doctor --check-egress` is an explicit opt-in to contact api4/api6.ipify.org
+  and compare public egress with WAN assignment. It remains disabled by default.
 
 ## Everyday usage
 
 ```bash
 ./nexxt ssh run "ip6tables -L zone_wan_forward -nv" --key ~/.ssh/nexxt_rsa   # run commands on the router
 ./nexxt fw list --key ~/.ssh/nexxt_rsa                                       # list pinhole rules
-./nexxt fw allow --key ~/.ssh/nexxt_rsa --name Allow-AWG-v6 \
-  --proto udp --dest-ip 2001:db8::123 --dest-port 51820                      # precise allow (firewall stays on)
+./nexxt fw ensure --key ~/.ssh/nexxt_rsa --name Allow-AWG-v6 \
+  --proto udp --dest-ip 2001:db8::123 --dest-port 51820                      # idempotent precise allow
+./nexxt fw audit --key ~/.ssh/nexxt_rsa                                      # UCI/runtime safety audit
+./nexxt inbound observe --key ~/.ssh/nexxt_rsa --rule Allow-AWG-v6 --wait 30 # make a fresh external connection
+./nexxt audit-update --key ~/.ssh/nexxt_rsa                                  # after OTA or configuration changes
+./nexxt support-bundle --key ~/.ssh/nexxt_rsa                                # sanitized issue attachment
 ./nexxt wanwatch --key ~/.ssh/nexxt_rsa                                      # watch for the public IPv4 provisioning
 ```
 
 ## Full rollback
 
 ```bash
-./nexxt ssh teardown    # removes the SSH instance and keys, restores /bin/restricted_shell
+./nexxt ssh teardown    # removes only toolkit-owned state/key and restores the recorded root line
 ```
 
 ## Error quick reference
@@ -119,6 +148,8 @@ One command tells you exactly which stage is good/bad/missing:
 | Handshake rejected after bootstrap | Key isn't RSA; must `ssh-keygen -t rsa` |
 | `no matching host key type found` | Modern OpenSSH needs `-o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedKeyTypes=+ssh-rsa` |
 | `verify` shows NOT CONFIRMED | Injection patched on this firmware; read-only features only |
+| Existing changes have no ownership record | A v1.4.0-or-older install is present; rerun bootstrap once with `--adopt-legacy` only if you created it with this toolkit |
+| Inbound observer says `not-observed` | Inconclusive: create a fresh client connection; offload or upstream filtering may both produce zero delta |
 
 ## Next steps
 

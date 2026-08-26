@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
-import ipaddress
-
 from . import probe as probe_mod
 from .client import NexxtClient, SessionExpired
-from .inject import Injector, I, run_ping
-from .ssh import status as ssh_status, ssh_run, host_of
+from .inject import Injector, run_ping
+from .ssh import host_of, ssh_run
+from .ssh import status as ssh_status
 from .wanwatch import classify_v4
 
-PASS, FAIL, SKIP = "PASS", "FAIL", "SKIP"
+PASS, FAIL, SKIP, INFO = "PASS", "FAIL", "SKIP", "INFO"
 
 
 def _wan_class(ip: str) -> str:
@@ -21,13 +20,14 @@ def _wan_class(ip: str) -> str:
 
 
 def run_doctor(base_url: str, port: int, key: str | None = None,
-               check_injection: bool = True, log=print) -> tuple[list[dict], int]:
+               check_injection: bool = True, check_egress: bool = False,
+               log=print) -> tuple[list[dict], int]:
     """Returns (stages, exit_code). exit 0 = all critical stages pass."""
     stages: list[dict] = []
 
     def stage(name: str, status: str, detail: str = "", hint: str = "") -> None:
         stages.append({"stage": name, "status": status, "detail": detail, "hint": hint})
-        mark = {"PASS": "✓", "FAIL": "✗", "SKIP": "-"}[status]
+        mark = {"PASS": "✓", "FAIL": "✗", "SKIP": "-", "INFO": "i"}[status]
         log(f"[{mark}] {name}: {status} {detail}" + (f"  → {hint}" if hint else ""))
 
     # 1. unauthenticated probe
@@ -57,7 +57,7 @@ def run_doctor(base_url: str, port: int, key: str | None = None,
         try:
             inj = Injector(client)
             base, _ = run_ping(client, "127.0.0.1")
-            e, _ = run_ping(client, f":::::::;sleep${{IFS}}3")
+            e, _ = run_ping(client, ":::::::;sleep${IFS}3")
             if e > base + 1.5:
                 stage("command-injection", PASS, f"baseline {base:.1f}s, probe {e:.1f}s")
             else:
@@ -90,7 +90,8 @@ def run_doctor(base_url: str, port: int, key: str | None = None,
     else:
         stage("ssh-service", SKIP, "needs session or --key")
 
-    # 5. WAN IPv4 class
+    # 5. WAN IPv4 assignment. A private address does NOT prove that inbound
+    # is blocked: an ISP can still provide 1:1 NAT or another upstream mapping.
     wan_class = None
     if key:
         proc = ssh_run(host_of(base_url), port, key,
@@ -108,11 +109,29 @@ def run_doctor(base_url: str, port: int, key: str | None = None,
         except Exception:
             pass
     if wan_class:
-        ok = wan_class == "PUBLIC"
-        stage("wan-public-ipv4", PASS if ok else FAIL, wan_class,
-              "" if ok else "inbound blocked at ISP (CGNAT); see docs/fastweb-notes.md")
+        stage("wan-ipv4-assignment", INFO, wan_class,
+              ("direct public assignment observed" if wan_class == "PUBLIC" else
+               "private WAN alone cannot determine inbound reachability"))
     else:
-        stage("wan-public-ipv4", SKIP, "needs session or --key")
+        stage("wan-ipv4-assignment", SKIP, "needs session or --key")
+    if check_egress:
+        from .egress import query
+        egress = query()
+        if egress["ipv4"]:
+            relationship = (
+                "upstream NAT present; inbound policy still unknown"
+                if wan_class and wan_class != "PUBLIC" else
+                "public egress observed")
+            stage("public-egress-ipv4", INFO, egress["ipv4"], relationship)
+        else:
+            stage("public-egress-ipv4", SKIP, "lookup unavailable")
+        stage("public-egress-ipv6", INFO if egress["ipv6"] else SKIP,
+              egress["ipv6"] or "lookup unavailable")
+    else:
+        stage("public-egress", SKIP, "external lookup disabled",
+              "re-run doctor with --check-egress to contact api4/api6.ipify.org")
+    stage("inbound-reachability", SKIP, "not inferred from WAN addressing",
+          "use 'nexxt inbound observe --rule NAME --key KEY' during a fresh external connection")
 
     critical = [s for s in stages if s["stage"] in
                 ("web-ui-compatibility", "command-injection", "ssh-service")]

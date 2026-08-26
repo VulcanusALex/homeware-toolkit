@@ -4,12 +4,16 @@ Usage: nexxt [--base-url URL] [--json] [--quiet] [--version] <command> [options]
 
 Commands:
   probe                         read-only compatibility probe (no login)
+  setup                         guided probe-to-SSH setup
   doctor                        end-to-end health check
   session login|check|dump|import-cookie
   verify                        non-persistent injection proof
   transfer <file> <target>      push a file over the injection channel
   ssh bootstrap|status|run|teardown
-  fw list|allow|delete
+  fw list|allow|ensure|audit|delete
+  inbound observe               watch a firewall rule during an external test
+  support-bundle                write a sanitized issue-ready report
+  audit-update                  post-firmware-update security audit
   wanwatch
 """
 
@@ -56,10 +60,21 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("probe", help="read-only compatibility probe")
 
+    p_setup = sub.add_parser("setup", help="guided, transactional first-time setup")
+    p_setup.add_argument("--key", default="~/.nexxt-one-toolkit/id_rsa",
+                         help="private-key path to create or reuse")
+    p_setup.add_argument("--port", type=int, default=2222)
+    p_setup.add_argument("--yes", action="store_true",
+                         help="accept the displayed persistent-change step")
+    p_setup.add_argument("--adopt-legacy", action="store_true",
+                         help="adopt a confirmed <=1.4.0 toolkit installation")
+
     p_doc = sub.add_parser("doctor", help="end-to-end health check")
     p_doc.add_argument("--key", help="SSH private key (enables SSH/WAN checks)")
     p_doc.add_argument("--port", type=int, default=2222)
     p_doc.add_argument("--no-injection", action="store_true")
+    p_doc.add_argument("--check-egress", action="store_true",
+                       help="opt in to public IPv4/IPv6 lookup via ipify")
 
     p_sess = sub.add_parser("session", help="web session management")
     sess_sub = p_sess.add_subparsers(dest="session_cmd", required=True)
@@ -85,6 +100,10 @@ def build_parser() -> argparse.ArgumentParser:
     s_boot.add_argument("--port", type=int, default=2222)
     s_boot.add_argument("--test", action="store_true")
     s_boot.add_argument("--dry-run", action="store_true")
+    s_boot.add_argument("--adopt-legacy", action="store_true",
+                        help="adopt a confirmed <=1.4.0 toolkit installation")
+    s_boot.add_argument("--original-shell", default="/bin/restricted_shell",
+                        help="pre-toolkit shell used only with --adopt-legacy")
     s_stat = ssh_sub.add_parser("status")
     s_stat.add_argument("--port", type=int, default=2222)
     s_run = ssh_sub.add_parser("run")
@@ -94,14 +113,16 @@ def build_parser() -> argparse.ArgumentParser:
     s_run.add_argument("--timeout", type=int, default=30)
     s_down = ssh_sub.add_parser("teardown")
     s_down.add_argument("--port", type=int, default=2222)
+    s_down.add_argument("--legacy-force", action="store_true",
+                        help="use old destructive cleanup only for <=1.4.0 installs")
 
     p_fw = sub.add_parser("fw", help="precise firewall pinholes (over SSH)")
     fw_sub = p_fw.add_subparsers(dest="fw_cmd", required=True)
-    for name in ("list", "allow", "delete"):
+    for name in ("list", "allow", "ensure", "audit", "delete"):
         sp = fw_sub.add_parser(name)
         sp.add_argument("--key", required=True)
         sp.add_argument("--port", type=int, default=2222)
-        if name == "allow":
+        if name in ("allow", "ensure"):
             sp.add_argument("--name", required=True)
             sp.add_argument("--proto", default="udp",
                             choices=["tcp", "udp", "tcpudp", "all"])
@@ -113,6 +134,27 @@ def build_parser() -> argparse.ArgumentParser:
             sp.add_argument("--dest", default="lan")
         if name == "delete":
             sp.add_argument("--name", required=True)
+
+    p_in = sub.add_parser("inbound", help="observe inbound firewall counter changes")
+    in_sub = p_in.add_subparsers(dest="inbound_cmd", required=True)
+    in_obs = in_sub.add_parser("observe")
+    in_obs.add_argument("--rule", required=True)
+    in_obs.add_argument("--key", required=True)
+    in_obs.add_argument("--port", type=int, default=2222)
+    in_obs.add_argument("--wait", type=int, default=30)
+
+    p_bundle = sub.add_parser("support-bundle", help="write a sanitized support bundle")
+    p_bundle.add_argument("--output", help=".zip or .json output path")
+    p_bundle.add_argument("--key", help="optional SSH key for sanitized doctor results")
+    p_bundle.add_argument("--port", type=int, default=2222)
+
+    p_audit = sub.add_parser("audit-update", help="audit security state after firmware changes")
+    p_audit.add_argument("--key", required=True)
+    p_audit.add_argument("--port", type=int, default=2222)
+    p_audit.add_argument("--state-file",
+                         default="~/.nexxt-one-toolkit/audit-state.json")
+    p_audit.add_argument("--accept-change", action="store_true",
+                         help="accept the current fingerprint as the new baseline")
 
     p_ww = sub.add_parser("wanwatch", help="WAN provisioning watcher")
     p_ww.add_argument("--key", required=True)
@@ -140,11 +182,19 @@ def main(argv: list[str] | None = None) -> int:
             return rep.out(result, 0 if result["analysis"]["compatibility_signal"]
                            == "strong-front-end-match" else 1)
 
+        if args.command == "setup":
+            from .setup import run_setup
+            result, code = run_setup(
+                args.base_url, args.port, args.key, assume_yes=args.yes,
+                force=args.force, adopt_legacy=args.adopt_legacy, log=log)
+            return rep.out(result, code)
+
         if args.command == "doctor":
             from . import doctor as doctor_mod
             stages, code = doctor_mod.run_doctor(
                 args.base_url, args.port, key=args.key,
-                check_injection=not args.no_injection, log=log)
+                check_injection=not args.no_injection,
+                check_egress=args.check_egress, log=log)
             return rep.out({"stages": stages}, code)
 
         if args.command == "session":
@@ -203,7 +253,10 @@ def main(argv: list[str] | None = None) -> int:
             if args.ssh_cmd == "bootstrap":
                 inj = Injector(NexxtClient(args.base_url), force=args.force,
                                dry_run=args.dry_run, log=log)
-                ssh_mod.bootstrap(inj, args.pubkey, args.port, log=log)
+                ssh_mod.bootstrap(
+                    inj, args.pubkey, args.port, log=log,
+                    adopt_legacy=args.adopt_legacy,
+                    original_shell=args.original_shell)
                 host = host_of(args.base_url)
                 log(f"\n[ssh] connect: ssh -i <key> -p {args.port} "
                     f"-o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedKeyTypes=+ssh-rsa root@{host}")
@@ -231,7 +284,8 @@ def main(argv: list[str] | None = None) -> int:
                 return proc.returncode
             if args.ssh_cmd == "teardown":
                 inj = Injector(NexxtClient(args.base_url), force=True, log=log)
-                ssh_mod.teardown(inj, args.port, log=log)
+                ssh_mod.teardown(inj, args.port, log=log,
+                                 legacy_force=args.legacy_force)
                 return rep.out({"teardown": True})
 
         if args.command == "fw":
@@ -247,15 +301,50 @@ def main(argv: list[str] | None = None) -> int:
                     if not rules:
                         print("(no pinhole rules)")
                 return rep.out(rules)
-            if args.fw_cmd == "allow":
-                fw.allow(args.name, args.proto, args.dest_ip, args.dest_port,
-                         args.family, args.src, args.dest)
-                log(f"[fw] rule {args.name!r} added")
-                return rep.out({"added": args.name})
+            if args.fw_cmd in ("allow", "ensure"):
+                result = fw.ensure(args.name, args.proto, args.dest_ip,
+                                   args.dest_port, args.family, args.src, args.dest)
+                log(f"[fw] rule {args.name!r} "
+                    f"{'updated' if result['changed'] else 'already exact'}")
+                return rep.out(result)
+            if args.fw_cmd == "audit":
+                result = fw.audit()
+                if not args.json:
+                    if result["findings"]:
+                        for finding in result["findings"]:
+                            print(f"[{finding['severity']}] {finding['type']}: "
+                                  f"{finding.get('rule', '-')}")
+                    else:
+                        print("firewall audit: no findings")
+                return rep.out(result, 0 if result["ok"] else 1)
             if args.fw_cmd == "delete":
                 sections = fw.delete(args.name)
                 log(f"[fw] deleted: {sections or 'nothing found'}")
                 return rep.out({"deleted": sections})
+
+        if args.command == "inbound":
+            from .firewall import FW
+            from .inbound import observe
+            fw = FW(host_of(args.base_url), args.port, args.key)
+            result = observe(fw, args.rule, args.wait, log=log)
+            return rep.out(result, 0 if result["state"] == "confirmed-at-gateway" else 2)
+
+        if args.command == "support-bundle":
+            from .support import build_report, default_output, write_bundle
+            output = write_bundle(
+                build_report(args.base_url, args.port, args.key),
+                args.output or default_output())
+            log(f"support bundle written: {output}")
+            return rep.out({"output": output})
+
+        if args.command == "audit-update":
+            from .audit import run_audit
+            result, code = run_audit(args.base_url, args.port, args.key,
+                                     args.state_file, args.accept_change)
+            if not args.json:
+                for check in result["checks"]:
+                    print(f"[{check['status']}] {check['check']}: {check['detail']}")
+            return rep.out(result, code)
 
         if args.command == "wanwatch":
             from . import wanwatch as ww_mod
@@ -267,7 +356,7 @@ def main(argv: list[str] | None = None) -> int:
     except SessionExpired as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 3
-    except RuntimeError as exc:
+    except (RuntimeError, OSError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
     return 2

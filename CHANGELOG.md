@@ -3,6 +3,43 @@
 All notable changes to this project are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/), versioning is semver.
 
+## [1.5.0] - 2026-08-27
+
+### Safety
+- SSH bootstrap now keeps persistent, root-only ownership records before any
+  mutation. It appends and tracks its own key instead of overwriting existing
+  authorized keys; teardown removes only toolkit-owned state and restores the
+  exact recorded root account line after reboot.
+- Existing unowned `dropbear.nx` or root-shell changes are refused by default.
+  Confirmed installs from v1.4.0 or older can be migrated explicitly with
+  `--adopt-legacy`; destructive legacy cleanup requires `--legacy-force`.
+- Guided setup is transactional and attempts exact rollback if the final SSH
+  handshake fails.
+
+### Added
+- `nexxt setup`: guided probe, physical-button login, non-persistent
+  verification, local RSA key generation, confirmation, bootstrap and doctor.
+- `nexxt inbound observe`: proves arrival at the gateway from positive named
+  firewall-rule counter deltas and treats zero as inconclusive.
+- `nexxt fw ensure`: idempotent named pinholes with UCI backup and rollback;
+  `nexxt fw audit`: duplicate, broad-WAN and UCI/runtime checks.
+  The existing `fw allow` CLI is retained as an alias for the safe ensure path.
+- `nexxt audit-update`: firmware fingerprint change tracking plus SSH policy,
+  rollback-state and firewall-runtime auditing after OTA updates.
+- `nexxt support-bundle`: reviewable ZIP/JSON with a strict sysinfo allowlist
+  and automatic credential, session, MAC, serial and IPv4 redaction.
+- Release workflow now builds wheel/sdist, a standalone `nexxt.pyz`, SHA-256
+  checksums, uploads GitHub Release assets and publishes via PyPI OIDC.
+
+### Changed
+- `doctor` reports WAN address assignment separately from inbound reachability.
+  Private/RFC1918 WAN is informational, not proof of CGNAT blocking or failed
+  inbound; upstream static 1:1 NAT is explicitly supported by the model.
+- `doctor --check-egress` optionally contacts the IPv4/IPv6 ipify endpoints;
+  external lookup is off by default and never substitutes for an inbound test.
+- Fastweb notes now distinguish historical test evidence from current/dynamic
+  operator provisioning instead of making permanent claims from WAN address.
+
 ## [1.4.0] - 2026-08-26
 
 ### Security

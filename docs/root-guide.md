@@ -124,10 +124,12 @@ Measure the baseline first with `host=127.0.0.1`. Proven patterns:
 
 What `bootstrap` does (all reversible):
 
-1. Backs up `/etc/passwd` to `/tmp/nx_passwd.bak` and patches root's shell
-   from `/bin/restricted_shell` to `/bin/ash` (required; overlayfs = persistent).
-2. Transfers your **RSA** public key to `/etc/dropbear/authorized_keys`
-   (md5-verified) and `/root/.ssh/authorized_keys`.
+1. Stores the original root account line under `/etc/nexxt-toolkit/` with
+   mode 0600, then patches the shell from `/bin/restricted_shell` to
+   `/bin/ash`. The rollback record survives reboot.
+2. Transfers your **RSA** public key with end-to-end verification, records the
+   exact line it owns, and appends it to both authorized-key files. Existing
+   keys are never overwritten.
 3. Creates a UCI dropbear instance: `enable=1`, `Port=2222`, `Interface=lan`,
    `PasswordAuth=off`, `RootPasswordAuth=off`; commits and
    `/etc/init.d/dropbear restart`.
@@ -149,8 +151,11 @@ ssh -i <key> -p 2222 \
   root@192.168.1.254
 ```
 
-`teardown` removes the instance, deletes the keys and restores
-`/bin/restricted_shell`.
+`teardown` removes the instance, removes only the recorded toolkit key, and
+restores the exact root account line captured before installation. A legacy
+installation created by v1.4.0 or older has no ownership record; migrate it
+once with `ssh bootstrap ... --adopt-legacy`. Without that explicit consent,
+the toolkit refuses destructive cleanup or adoption.
 
 ## 7. Firewall truths & pinholes
 
@@ -177,6 +182,18 @@ ssh -i <key> -p 2222 \
 
   It lands in `zone_wan_forward` and survives reboots and firewall reloads.
 
+Prefer `nexxt fw ensure` to raw UCI: it creates or updates one named rule
+idempotently, backs up the firewall package, reloads it, and restores the
+backup if the operation fails. `nexxt fw audit` reports duplicate names,
+broad WAN accepts, and enabled UCI rules absent from the running tables.
+
+To test real inbound reachability, run `nexxt inbound observe --rule NAME
+--key KEY` and start a **new** external connection during the window. A
+positive packet delta proves arrival at the gateway. Zero is deliberately
+reported as inconclusive: client inactivity, hardware offload and upstream
+filtering can all produce it. A private WAN address by itself does not prove
+CGNAT blocking; an ISP may provide upstream 1:1 NAT.
+
 ## 8. Troubleshooting
 
 | Symptom | Cause / fix |
@@ -185,7 +202,8 @@ ssh -i <key> -p 2222 \
 | Injected command "does nothing" | `>` stripped (use `tee`), or content filter (bisect), or sandboxed netns (no network possible) |
 | Long request silently ignored | Host-string length/content limit — split the payload |
 | dropbear starts but key rejected | ed25519 unsupported (use RSA), file must be newline-terminated, `/bin/restricted_shell` blocks login |
-| `Connection refused` from outside on IPv6 | Upstream (ISP 6rd) rejects — not your device, see docs/fastweb-notes.md |
+| `not-observed` from inbound observer | Inconclusive; create a new external flow and inspect offload/upstream state |
+| Existing SSH changes have no ownership record | Use `--adopt-legacy` only for a confirmed toolkit <=1.4.0 install; otherwise leave them untouched |
 | File content wrong after transfer | Late/arbitrary re-execution clobbered it — re-audit segments and re-write the bad ones |
 
 ## 9. FAQ
@@ -194,15 +212,21 @@ ssh -i <key> -p 2222 \
   device buttons (or reusing a session created that way).
 - **Can this brick the gateway?** The described steps don't touch flash layout,
   firmware images, boot banks or TR-069. `teardown` restores the shell.
-- **Does it survive a firmware update?** Assume no. Re-run the probe first.
+- **Does it survive a firmware update?** Assume no. Run `nexxt audit-update
+  --key KEY`; it records the firmware fingerprint and checks SSH policy,
+  persistent rollback state and firewall runtime.
 - **ISP's own dropbear (`dropbear.wan`)?** Leave it alone; it's restricted to
   an ISP subnet with 2FA.
 
 ## 10. Recovery & safety
 
-- Restore root shell: `sed -i 's#^\(root:.*:\)[^:]*$#\1/bin/restricted_shell#' /etc/passwd`
-  (or `cp /tmp/nx_passwd.bak /etc/passwd` before reboot).
-- Remove SSH: `./nexxt ssh teardown`.
+- Preferred recovery: `./nexxt ssh teardown`; it uses the persistent ownership
+  record and preserves unrelated keys and account changes.
+- Do not use `--legacy-force` unless you have confirmed a <=1.4.0 toolkit
+  installation and accept its old whole-file key cleanup behavior.
 - `/tmp` artifacts vanish on reboot; to wipe now: `rm -f /tmp/nx* /tmp/k*.b64`.
 - Browser HAR files contain the `sessionID` and possibly VoIP credentials
   (`deviceinfo` leaks a base64 SIP password) — delete them after use.
+- Before opening a public issue, create `nexxt support-bundle`; it only admits
+  safe firmware fields and redacts cookies, credentials, MACs, serials and raw
+  IP addresses. Review the report before uploading it.

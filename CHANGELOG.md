@@ -3,6 +3,39 @@
 All notable changes to this project are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/), versioning is semver.
 
+## [1.4.0] - 2026-08-26
+
+### Security
+- **`fw allow` / `fw delete` command-injection hardening.** Free-form values
+  (`--dest-ip`, `--dest-port`, `--src`, `--dest`, `--proto`) that get
+  interpolated into UCI commands sent over SSH are now strictly validated:
+  IPs via `ipaddress` (scope-ids rejected, address normalized before use),
+  ports as single/range/list within 1–65535, zones/proto against a strict
+  token regex. `delete` now validates the rule name (previously unchecked).
+
+### Fixed
+- **`probe` no longer crashes on non-matching firmware.** `inspect_assets`
+  used an eagerly-evaluated `all((...))` tuple that raised `AttributeError`
+  when the IPv6 validator regex was absent — the exact "firmware differs" case
+  the probe exists to report. Now short-circuits to `incomplete-match`.
+- **`transfer` verifies the assembled file end-to-end.** `assemble` takes an
+  optional `expect_md5` and the `nexxt transfer` command now checks the target
+  md5 (defends against the backend's async/out-of-order segment writes) and
+  cleans up its `/tmp` scratch files.
+- User-Agent now derives from the package version (was pinned to `1.2`).
+- `wanwatch --state-file` path expansion fixed (`~` was string-replaced
+  everywhere); file handles wrapped in context managers; dead code removed;
+  Injector baseline now uses a two-sample max like `verify`.
+
+### Added
+- **Richer `wanwatch`.** When the router exposes `ifstatus` it reports the
+  connectivity mode (native DHCPv6 vs 6rd), delegated prefixes and dynamic
+  flags, a human-readable change summary, atomic state writes, and an opt-in
+  `--notify` desktop notification (macOS; no-op elsewhere). Falls back to
+  plain `ip addr` parsing on devices without `ifstatus`.
+- Regression test suites: `test_firewall.py`, `test_core_fixes.py`,
+  `test_plumbing.py` (53 tests total).
+
 ## [1.3.0] - 2026-08-25
 
 ### Added

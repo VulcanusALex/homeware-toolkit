@@ -47,8 +47,14 @@ def _write_segment(inj, seg: str, part: str, depth: int = 0) -> list[str]:
             + _write_segment(inj, seg[mid:], part + "b", depth + 1))
 
 
-def assemble(inj, parts: list[str], target: str) -> None:
-    """cat parts | tr '_-' '/+' | base64 -d | tee target (grouped, short cmds)."""
+def assemble(inj, parts: list[str], target: str,
+             expect_md5: str | None = None) -> None:
+    """cat parts | tr '_-' '/+' | base64 -d | tee target (grouped, short cmds).
+
+    When expect_md5 is given, verify the assembled target end-to-end via the
+    oracle and raise on mismatch — the backend executes writes asynchronously
+    and a late/duplicated segment can silently corrupt the result.
+    """
     groups = [parts[i:i + 6] for i in range(0, len(parts), 6)]
     temps = []
     for gi, g in enumerate(groups):
@@ -58,3 +64,8 @@ def assemble(inj, parts: list[str], target: str) -> None:
     inj.do(f"cat{I}" + " ".join(temps)
            + f"|tr{I}'_-'{I}'/+'|base64{I}-d|tee{I}{target}")
     time.sleep(0.5)
+    if expect_md5 and not inj.dry_run:
+        if not inj.ask(f"md5sum{I}{target}|grep{I}-q{I}{expect_md5}"):
+            raise RuntimeError(f"target md5 mismatch after transfer: {target}")
+    # Clean up the intermediate group temps this function created.
+    inj.do(f"rm{I}-f{I}/tmp/nxg_*")

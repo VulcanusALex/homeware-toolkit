@@ -19,6 +19,12 @@ cd nexxt-one-toolkit
 > Run every `./nexxt` command below from the repo root. On native Windows
 > cmd, use `python nexxt_toolkit/cli.py` instead (or just use WSL).
 
+Alternatively, install the same CLI with `pipx install nexxt-one-toolkit`, or
+download the standalone `nexxt.pyz` and `SHA256SUMS` from the latest GitHub
+Release. The README contains the checksum-verification commands. When using an
+installed command, replace `./nexxt` below with `nexxt`; for the zipapp, use
+`./nexxt.pyz`.
+
 ## Guided path (recommended)
 
 One command performs the numbered steps below, generates a compatible RSA key

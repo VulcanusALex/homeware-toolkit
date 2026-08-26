@@ -18,6 +18,11 @@ cd nexxt-one-toolkit
 > 后文所有 `./nexxt` 命令都在仓库根目录执行。Windows 原生 cmd 请用
 > `python nexxt_toolkit/cli.py` 替代（或直接用 WSL）。
 
+也可用 `pipx install nexxt-one-toolkit` 安装同一个 CLI，或从最新 GitHub
+Release 下载独立 `nexxt.pyz` 和 `SHA256SUMS`；README 提供了校验和运行命令。
+使用已安装的版本时，把下文 `./nexxt` 换成 `nexxt`；使用 zipapp 时换成
+`./nexxt.pyz`。
+
 ## 推荐：一条命令完成安全部署
 
 下面这条命令会依次完成后文的探测、按键登录、无害验证、本地 RSA 密钥生成、

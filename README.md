@@ -54,12 +54,40 @@ cd nexxt-one-toolkit
 ./nexxt ssh teardown
 ```
 
-Install from PyPI (`pipx` recommended) or directly from a clone:
+## Install
+
+PyPI with `pipx` is the recommended installation because it keeps the command
+isolated and makes upgrades straightforward:
 
 ```bash
 pipx install nexxt-one-toolkit
 nexxt --help
 ```
+
+Each GitHub Release also contains a dependency-free `nexxt.pyz`, wheel, source
+archive and `SHA256SUMS`. To use the standalone archive without installing a
+package:
+
+```bash
+curl -fLO https://github.com/VulcanusALex/nexxt-one-toolkit/releases/latest/download/nexxt.pyz
+curl -fLO https://github.com/VulcanusALex/nexxt-one-toolkit/releases/latest/download/SHA256SUMS
+grep ' nexxt.pyz$' SHA256SUMS | shasum -a 256 -c -
+chmod +x nexxt.pyz
+./nexxt.pyz --help
+```
+
+Cloning the repository remains the best option for development and for reading
+the guides alongside the tool. All three forms expose the same `nexxt` CLI.
+
+### Upgrade from v1.4.0 or older
+
+Old releases did not persist enough ownership information for exact rollback.
+After upgrading the local CLI, adopt an existing toolkit-created installation
+once with `ssh bootstrap ... --adopt-legacy`. Do this only when the existing
+`dropbear.nx` instance and root-shell change were made by this toolkit; unknown
+changes are deliberately left untouched. See the
+[quickstart migration step](docs/quickstart.md#step-4-deploy-persistent-ssh-5-minutes)
+and [security model](SECURITY.md#hardening-notes-for-users).
 
 ## The toolkit
 
@@ -121,6 +149,9 @@ Ping 诊断命令注入的无持久化验证、经该通道的可靠文件传输
 精确防火墙管理、真实入站计数观察、OTA 后安全审计、脱敏支持包与 WAN 状态监控。
 统一入口 `./nexxt`；新用户可直接运行 `./nexxt setup`，已有用户用
 `./nexxt doctor`、`fw audit` 和 `audit-update` 体检。
+推荐用 `pipx install nexxt-one-toolkit` 安装；GitHub Release 也提供带
+`SHA256SUMS` 的独立 `nexxt.pyz`。从 v1.4.0 或更早版升级时，只有在确认
+现有 SSH 修改由本工具创建后，才执行一次 `--adopt-legacy` 迁移。
 新用户建议从 [docs/quickstart.zh-CN.md](docs/quickstart.zh-CN.md)（逐步图文）开始。
 **仅限用于你自己的设备**。完整中文文档见
 [docs/root-guide.zh-CN.md](docs/root-guide.zh-CN.md)。

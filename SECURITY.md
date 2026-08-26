@@ -64,3 +64,6 @@ publication, following coordinated disclosure practices.
   credentials returned by the `deviceinfo` API — delete them after use.
 - `support-bundle` uses a strict sysinfo allowlist and redacts credentials,
   sessions, MACs, serials and raw IP addresses; still review it before sharing.
+- GitHub Releases publish `SHA256SUMS` beside the wheel, source archive and
+  standalone `nexxt.pyz`. Verify the selected artifact before running it; the
+  README includes a command that checks only the downloaded zipapp entry.

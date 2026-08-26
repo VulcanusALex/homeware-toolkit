@@ -103,7 +103,7 @@ Measure the baseline first with `host=127.0.0.1`. Proven patterns:
 `test -f`, `grep -q`, `wc -c <f> | grep -q '^393'`, `md5sum <f> | grep -q <hash>`,
 `netstat -tln | grep -q :2222`, `test $(id -u) -eq 0`.
 
-## 5. Reliable file transfer ((unified CLI: `nexxt transfer`))
+## 5. Reliable file transfer (unified CLI: `nexxt transfer`)
 
 1. base64 → URL-safe alphabet (`+`→`-`, `/`→`_`).
 2. Split into ≤48-char segments; each goes to its own idempotent file
@@ -120,7 +120,7 @@ Measure the baseline first with `host=127.0.0.1`. Proven patterns:
    land later and clobber a newer correct file (observed). Re-audit after
    transferring.
 
-## 6. Persistent SSH ((unified CLI: `nexxt ssh`))
+## 6. Persistent SSH (unified CLI: `nexxt ssh`)
 
 What `bootstrap` does (all reversible):
 

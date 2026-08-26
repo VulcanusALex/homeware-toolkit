@@ -42,6 +42,7 @@ attach the ZIP to a compatibility issue. Do not paste a session dump or HAR.
 1. Bump `__version__` in `nexxt_toolkit/__init__.py` and `version` in
    `pyproject.toml`; update `CHANGELOG.md`.
 2. Commit, tag `vX.Y.Z`, push with tags.
-3. Create a GitHub Release — the `release` workflow builds and uploads to
-   PyPI automatically via **trusted publishing** (one-time setup: on
-   pypi.org → project → Publishing → add this repo's `release.yml`).
+3. Create a GitHub Release — the `release` workflow builds the wheel, source
+   archive and standalone `nexxt.pyz`, uploads them with `SHA256SUMS`, and
+   publishes to PyPI automatically via **trusted publishing** (one-time setup:
+   on pypi.org → project → Publishing → add this repo's `release.yml`).

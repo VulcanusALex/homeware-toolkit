@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "firewall": {
+    "prune": false,
+    "rules": [
+      {
+        "name": "Allow-AWG-v6",
+        "proto": "udp",
+        "dest_ip": "2001:db8::123",
+        "dest_port": 51820,
+        "family": "ipv6",
+        "enabled": true
+      },
+      {
+        "name": "Allow-HTTPS-v4",
+        "proto": "tcp",
+        "dest_ip": "192.168.1.50",
+        "dest_port": "443",
+        "family": "ipv4"
+      }
+    ]
+  },
+  "ssh": {
+    "require_key_only": true,
+    "require_lan_only": true
+  }
+}

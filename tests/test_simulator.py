@@ -160,6 +160,27 @@ class SessionLifecycle(GatewayCase):
                                     state="Requested", name="ping")
         self.assertEqual(status, 200)
 
+    def test_reads_require_authentication(self):
+        """Verified on real FW_058 hardware (2026-08-29): every nvget
+        readout answers nginx 403 without an authenticated session -- even
+        holding a fresh /login session cookie. Only the login_confirm
+        handshake service is reachable pre-auth."""
+        # fresh session cookie exists but is not authenticated
+        self.assertFalse(self.client.is_authenticated())
+        for service in ("sysinfo", "wanstatusinfo", "pingstatusinfo",
+                        "laninfo"):
+            status, _ = self.client.get(service)
+            self.assertEqual(status, 403, service)
+        # the login handshake itself must stay reachable pre-auth
+        status, data = self.client.get("login_confirm", cmd="7")
+        self.assertEqual(status, 200)
+        self.assertIn("login_confirm", data)
+        # after the button login, reads open up
+        self.assertTrue(self.client.button_login(wait_seconds=10, log=SILENT))
+        for service in ("sysinfo", "pingstatusinfo"):
+            status, _ = self.client.get(service)
+            self.assertEqual(status, 200, service)
+
 
 class SessionExpiry(GatewayCase):
     gateway_kwargs = {"session_ttl": 0.4}

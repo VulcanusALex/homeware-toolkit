@@ -317,5 +317,105 @@ class TestRunDashboardGuards(unittest.TestCase):
         self.assertIn("--json", str(ctx.exception))
 
 
+class FakeCursesError(Exception):
+    pass
+
+
+class FakeCurses:
+    """Minimal stand-in for the curses module (what _main_loop touches)."""
+
+    error = FakeCursesError
+
+
+class FakeStdscr:
+    """Scripted curses window: replays keys, records every drawn line."""
+
+    def __init__(self, keys, size=(24, 80), fail_rows=()):
+        self._keys = list(keys)
+        self._size = size
+        self._fail_rows = set(fail_rows)
+        self.drawn = []          # (row, text) pairs actually accepted
+        self.timeout_ms = None
+        self.refresh_count = 0
+
+    def timeout(self, ms):
+        self.timeout_ms = ms
+
+    def erase(self):
+        pass
+
+    def getmaxyx(self):
+        return self._size
+
+    def addnstr(self, row, col, text, n):
+        if row in self._fail_rows:
+            raise FakeCursesError("simulated curses.error")
+        self.drawn.append((row, text[:n]))
+
+    def refresh(self):
+        self.refresh_count += 1
+
+    def getch(self):
+        return self._keys.pop(0) if self._keys else ord("q")
+
+
+def _counting_provider(counter):
+    def provider():
+        counter[0] += 1
+        return {"model": "FGA221D", "hw_version": "GDNT-S",
+                "fw_version": "FW_058"}
+    return provider
+
+
+class TestMainLoop(unittest.TestCase):
+    """The curses event loop, driven through a scripted fake window."""
+
+    def _run(self, keys, size=(24, 80), fail_rows=()):
+        counter = [0]
+        providers = tui.Providers(device_info=_counting_provider(counter))
+        stdscr = FakeStdscr(keys, size=size, fail_rows=fail_rows)
+        tui._main_loop(stdscr, providers, 5.0, FakeCurses)
+        return stdscr, counter
+
+    def test_quit_exits_after_initial_render(self):
+        stdscr, counter = self._run([ord("q")])
+        self.assertEqual(counter[0], 1)           # one initial collection
+        self.assertTrue(stdscr.drawn)             # something was drawn
+        self.assertEqual(stdscr.drawn[0][0], 0)   # starting at row 0
+        self.assertEqual(stdscr.timeout_ms, 5000)  # refresh -> timeout ms
+
+    def test_r_key_forces_refresh(self):
+        _, counter = self._run([ord("r"), ord("R"), ord("q")])
+        self.assertEqual(counter[0], 3)  # initial + two manual refreshes
+
+    def test_timeout_triggers_periodic_refresh(self):
+        _, counter = self._run([-1, -1, ord("q")])
+        self.assertEqual(counter[0], 3)  # initial + two periodic refreshes
+
+    def test_rows_beyond_height_are_skipped(self):
+        stdscr, _ = self._run([ord("q")], size=(3, 80))
+        self.assertTrue(all(row < 2 for row, _ in stdscr.drawn))
+
+    def test_curses_error_on_row_is_swallowed(self):
+        stdscr, _ = self._run([ord("q")], fail_rows=(1,))
+        rows = [row for row, _ in stdscr.drawn]
+        self.assertNotIn(1, rows)
+        self.assertIn(0, rows)  # other rows still drawn
+
+    def test_run_dashboard_uses_injected_wrapper(self):
+        stdscr = FakeStdscr([ord("q")])
+        seen = {}
+
+        def fake_wrapper(fn):
+            seen["called"] = True
+            fn(stdscr)
+
+        with mock.patch.object(sys.stdout, "isatty", return_value=True):
+            code = tui.run_dashboard(tui.Providers(), _wrapper=fake_wrapper)
+        self.assertEqual(code, 0)
+        self.assertTrue(seen.get("called"))
+        self.assertTrue(stdscr.drawn)
+
+
 if __name__ == "__main__":
     unittest.main()

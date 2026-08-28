@@ -186,21 +186,29 @@ def render_lines(snapshot: DashboardSnapshot, width: int = 100) -> list[str]:
     return [_clip(line, width) for line in lines]
 
 
-def _main_loop(stdscr, providers: Providers, refresh: float) -> None:
-    import curses
+def _render_frame(stdscr, snapshot: DashboardSnapshot, curses_mod) -> None:
+    """Draw one full frame. ``curses_mod`` is the (possibly fake) curses
+    module, injected so the frame logic is testable without a terminal."""
+    stdscr.erase()
+    height, width = stdscr.getmaxyx()
+    for row, line in enumerate(render_lines(snapshot, width - 1)):
+        if row >= height - 1:
+            break
+        try:
+            stdscr.addnstr(row, 0, line, width - 1)
+        except curses_mod.error:
+            pass  # window too small for this line; skip it
+    stdscr.refresh()
+
+
+def _main_loop(stdscr, providers: Providers, refresh: float,
+               curses_mod) -> None:
+    """Event loop. ``curses_mod`` is injected for testability: any object
+    exposing an ``error`` exception class works (real curses or a fake)."""
     stdscr.timeout(max(100, int(refresh * 1000)))
     snapshot = collect_snapshot(providers)
     while True:
-        stdscr.erase()
-        height, width = stdscr.getmaxyx()
-        for row, line in enumerate(render_lines(snapshot, width - 1)):
-            if row >= height - 1:
-                break
-            try:
-                stdscr.addnstr(row, 0, line, width - 1)
-            except curses.error:
-                pass  # window too small for this line; skip it
-        stdscr.refresh()
+        _render_frame(stdscr, snapshot, curses_mod)
         key = stdscr.getch()
         if key in (ord("q"), ord("Q")):
             return
@@ -210,12 +218,16 @@ def _main_loop(stdscr, providers: Providers, refresh: float) -> None:
             snapshot = collect_snapshot(providers)
 
 
-def run_dashboard(providers: Providers, refresh: float = DEFAULT_REFRESH) -> int:
+def run_dashboard(providers: Providers, refresh: float = DEFAULT_REFRESH,
+                  _wrapper=None) -> int:
     """Run the curses dashboard. Returns 0 on clean exit ('q').
 
     Raises RuntimeError with a clear message when curses is unavailable or
     stdout is not a terminal; in that case use the '--json' output of the
     individual commands in a polling loop instead.
+
+    ``_wrapper`` is a test seam: a callable ``wrapper(fn, *args)`` standing
+    in for ``curses.wrapper``.
     """
     if not sys.stdout.isatty():
         raise RuntimeError(
@@ -229,5 +241,6 @@ def run_dashboard(providers: Providers, refresh: float = DEFAULT_REFRESH) -> int
             "the 'curses' module is not available on this Python/platform; "
             "use the --json output of the individual commands in a polling "
             "loop instead") from exc
-    curses.wrapper(_main_loop, providers, refresh)
+    wrapper = _wrapper or curses.wrapper
+    wrapper(lambda stdscr: _main_loop(stdscr, providers, refresh, curses))
     return 0

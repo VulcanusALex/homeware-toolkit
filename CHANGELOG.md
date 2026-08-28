@@ -3,6 +3,19 @@
 All notable changes to this project are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/), versioning is semver.
 
+## [Unreleased]
+
+### Fixed
+- Simulator fidelity, checked against real FW_058 hardware: every `nvget`
+  readout requires an authenticated session (nginx 403 otherwise, even with
+  a fresh `/login` cookie); only the `login_confirm` handshake service is
+  reachable pre-auth. The fake gateway now enforces this and an integration
+  test locks the behaviour in.
+- The dashboard curses event loop is fully unit-tested: rendering and key
+  handling are driven through an injected curses interface (quit, manual
+  refresh, periodic refresh, small windows, per-row `curses.error`), leaving
+  no untestable glue code.
+
 ## [1.6.0] - 2026-08-29
 
 ### Security

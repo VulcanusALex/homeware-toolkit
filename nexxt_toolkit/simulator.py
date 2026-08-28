@@ -12,6 +12,19 @@ Simulates the stock web stack closely enough for the toolkit clients:
 
 Only used by tests; never talks to a real network by itself (binds to
 127.0.0.1 on an ephemeral port).
+
+Fidelity record (checked against a real FW_058 device on 2026-08-29):
+  * VERIFIED: all ``nvget`` readouts return nginx 403 without an
+    authenticated session -- even a fresh ``/login`` session cookie is not
+    enough; only the ``login_confirm`` handshake service itself is reachable
+    pre-auth (it implements login).
+  * VERIFIED: the JSON envelope wraps payloads as ``{"<service>": {...}}``
+    (confirmed for ``login_confirm``; ``sysinfo``/``pingstatusinfo`` follow
+    the same convention used by the front-end code).
+  * PENDING real-device capture: exact ``DiagnosticsState`` terminal values
+    and the full ``pingstatusinfo``/``sysinfo`` field sets. The client only
+    relies on the envelope and on the state leaving ``Requested``/
+    ``InProgress``, so the simulation is safe for the toolkit's usage.
 """
 
 from __future__ import annotations
@@ -589,6 +602,11 @@ class FakeGateway:
                     path = "1" if self._button_pressed else "0"
                 return 200, {"login_confirm": {"loginPath": path}}
             return 200, {"login_confirm": {}}
+        # Verified on real FW_058 hardware: every other nvget readout is
+        # gated behind an authenticated session (nginx 403 otherwise), even
+        # when the caller holds a fresh but unauthenticated session cookie.
+        if not self._authenticated(sid):
+            return 403, {"error": "session required"}
         if service == "pingstatusinfo":
             with self._lock:
                 state = self._diag_state

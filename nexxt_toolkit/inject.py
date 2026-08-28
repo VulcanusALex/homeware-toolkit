@@ -12,10 +12,17 @@ from __future__ import annotations
 
 import time
 
+from . import compat
+
 I = "${IFS}"
 ORACLE_SLEEP = 5
 
-KNOWN_FINGERPRINTS = ("GDNT", "FGA221", "NeXXt")
+# Legacy token tuple, kept for backwards compatibility with any external
+# importers; the authoritative fingerprint data now lives in compat.json.
+KNOWN_FINGERPRINTS = tuple(
+    token for entry in compat.load_compat()
+    for token in (entry.get("board", ""), entry.get("model_prefix", ""),
+                  entry.get("product_contains", "")) if token)
 
 
 def run_ping(client, host: str, settle_timeout: float = 45.0,
@@ -64,13 +71,21 @@ class Injector:
     def _guard(self) -> None:
         status, data = self.client.get("sysinfo")
         info = data.get("sysinfo", {}) if status == 200 else {}
-        haystack = " ".join(str(info.get(k, "")) for k in
-                            ("model", "hw_version", "fw_version"))
-        if not any(fp in haystack for fp in KNOWN_FINGERPRINTS):
+        result = compat.match_fingerprint(
+            board=str(info.get("hw_version", "")),
+            model=str(info.get("model", "")),
+            product=str(info.get("model", "")),
+            firmware=str(info.get("fw_version", "")))
+        if result.status == compat.STATUS_UNKNOWN:
+            haystack = " ".join(str(info.get(k, "")) for k in
+                                 ("model", "hw_version", "fw_version"))
             raise UnknownDeviceError(
                 f"unrecognized device fingerprint {haystack!r}; refusing to "
                 "inject. Re-run 'nexxt probe' to check compatibility, or "
                 "pass --force if you know what you are doing.")
+        if result.status == compat.STATUS_UNTESTED:
+            self.log(f"[guard] {result.reason}; proceeding "
+                     "(use --force to skip this check entirely)")
 
     def do(self, cmd: str) -> float:
         if self.dry_run:

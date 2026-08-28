@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "fingerprints": [
+    {
+      "board": "GDNT-S",
+      "model_prefix": "FGA221",
+      "product_contains": "NeXXt",
+      "known_firmware": [
+        "22.2.0378_FW_058_FGA221D",
+        "22.2.0378_FW_056_FGA221D"
+      ],
+      "status": "verified",
+      "notes": "Fastweb NeXXt One (Technicolor/Vantiva FGA221D). FW_058 verified by the maintainer; FW_056 confirmed via community report. Same injection channel and web API surface on both."
+    }
+  ]
+}

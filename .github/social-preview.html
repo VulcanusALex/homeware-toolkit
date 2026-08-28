@@ -1,0 +1,121 @@
+<!doctype html>
+<meta charset="utf-8">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html,body { width:1280px; height:640px; overflow:hidden; }
+  body {
+    background:
+      radial-gradient(900px 520px at 88% 8%, rgba(63,185,80,.13), transparent 62%),
+      radial-gradient(700px 460px at 4% 96%, rgba(88,166,255,.10), transparent 60%),
+      #0b0e14;
+    color:#e6edf3;
+    font-family:-apple-system,"Helvetica Neue",sans-serif;
+    display:flex; align-items:center;
+    padding:0 72px; gap:52px;
+    position:relative;
+  }
+  /* left accent rail */
+  body::before{
+    content:""; position:absolute; left:0; top:0; bottom:0; width:8px;
+    background:linear-gradient(180deg,#3fb950 0%,#2ea043 45%,#58a6ff 100%);
+  }
+  .left { width:498px; flex:none; }
+
+  .wordmark{
+    font-family:"SF Mono",Menlo,monospace;
+    font-size:45px; font-weight:700; letter-spacing:-2px;
+    line-height:1; color:#fff; white-space:nowrap;
+  }
+  .wordmark .dash{ color:#3fb950; }
+  .tagline{
+    margin-top:16px; font-size:25px; font-weight:600;
+    letter-spacing:-.4px; color:#c9d5e1;
+  }
+  .device{
+    margin-top:13px; font-family:"SF Mono",Menlo,monospace;
+    font-size:14.5px; letter-spacing:.2px; color:#7d8791;
+  }
+  .device b{ color:#9aa5b1; font-weight:500; }
+
+  .feats{ margin-top:30px; display:flex; flex-direction:column; gap:11px; }
+  .feat{ display:flex; align-items:center; gap:11px; font-size:16.5px; color:#b9c4d0; letter-spacing:-.1px; }
+  .tick{
+    flex:none; width:18px; height:18px; border-radius:5px;
+    background:rgba(63,185,80,.15); border:1px solid rgba(63,185,80,.42);
+    color:#3fb950; font-size:11px; font-weight:700;
+    display:flex; align-items:center; justify-content:center; line-height:1;
+  }
+  .foot{
+    margin-top:32px; display:flex; align-items:center; gap:10px;
+    font-family:"SF Mono",Menlo,monospace; font-size:13px; color:#6e7681;
+  }
+  .pill{
+    border:1px solid #2b323c; border-radius:999px; padding:5px 11px;
+    color:#8b949e; background:rgba(255,255,255,.02);
+  }
+
+  /* terminal */
+  .term{
+    flex:1; align-self:center;
+    background:#11151c; border:1px solid #262d38; border-radius:13px;
+    box-shadow:0 26px 60px rgba(0,0,0,.5);
+    display:flex; flex-direction:column; overflow:hidden;
+  }
+  .bar{
+    height:36px; flex:none; display:flex; align-items:center; gap:8px;
+    padding:0 14px; background:#161b23; border-bottom:1px solid #232a34;
+  }
+  .dot{ width:11px; height:11px; border-radius:50%; }
+  .bar span{
+    margin-left:10px; font-family:"SF Mono",Menlo,monospace;
+    font-size:12px; color:#6e7681; letter-spacing:.3px;
+  }
+  .body{
+    flex:1; padding:19px 22px;
+    font-family:"SF Mono",Menlo,monospace;
+    font-size:15px; line-height:1.72; white-space:pre; color:#adb7c2;
+  }
+  .p{ color:#58a6ff; } .c{ color:#e6edf3; } .f{ color:#a5d6ff; }
+  .ok{ color:#3fb950; } .tag{ color:#8b949e; } .warnless{ color:#d29922; }
+</style>
+
+<div class="left">
+  <div class="wordmark">nexxt<span class="dash">-</span>one<span class="dash">-</span>toolkit</div>
+  <div class="tagline">Own your Fastweb NeXXt One</div>
+  <div class="device"><b>FGA221D</b> · <b>GDNT-S</b> · firmware <b>22.2.0378</b></div>
+
+  <div class="feats">
+    <div class="feat"><i class="tick">✓</i>Compatibility probe &amp; non-destructive verify</div>
+    <div class="feat"><i class="tick">✓</i>Reliable file transfer over the diag channel</div>
+    <div class="feat"><i class="tick">✓</i>Persistent key-only SSH bootstrap</div>
+    <div class="feat"><i class="tick">✓</i>Inbound traffic &amp; firewall auditing</div>
+  </div>
+
+  <div class="foot">
+    <span class="pill">Python 3.9+ stdlib</span>
+    <span class="pill">zero deps</span>
+    <span class="pill">MIT</span>
+  </div>
+</div>
+
+<div class="term">
+  <div class="bar">
+    <i class="dot" style="background:#ff5f57"></i>
+    <i class="dot" style="background:#febc2e"></i>
+    <i class="dot" style="background:#28c840"></i>
+    <span>nexxt — demo</span>
+  </div>
+  <div class="body"><span class="p">$</span> <span class="c">nexxt probe</span>
+<span class="tag">[probe]</span> FGA221D · FW 22.2.0378 · <span class="ok">compatible</span>
+
+<span class="p">$</span> <span class="c">nexxt session login</span>
+<span class="tag">[login]</span> press BOTH side buttons for 3s
+<span class="tag">[login]</span> authenticated=<span class="ok">True</span>
+
+<span class="p">$</span> <span class="c">nexxt ssh bootstrap</span> <span class="f">--pubkey ~/.ssh/nexxt_rsa.pub</span>
+<span class="tag">[ssh]</span>   dropbear · key-only · survives reboot
+<span class="tag">[ssh]</span>   handshake <span class="ok">OK</span>
+
+<span class="p">$</span> <span class="c">nexxt doctor</span>
+<span class="ok">[✓]</span> web-ui  <span class="ok">[✓]</span> session  <span class="ok">[✓]</span> injection  <span class="ok">[✓]</span> ssh</div>
+</div>

@@ -3,12 +3,49 @@
 from __future__ import annotations
 
 import base64
+import re
 import time
 
 from .inject import I
 
 CHUNK = 48
 MAX_TRIES = 4
+
+# tag and target are interpolated raw into injected shell commands; strict
+# validation is the primary defense against command injection.
+TAG_RE = re.compile(r"^[A-Za-z0-9._-]{1,32}$")
+TARGET_RE = re.compile(r"^[A-Za-z0-9/._-]{1,200}$")
+
+
+def _validate_tag(tag: str) -> str:
+    """Validate a transfer tag; reject anything with shell significance."""
+    if not isinstance(tag, str) or not TAG_RE.fullmatch(tag):
+        raise ValueError(
+            f"tag must match [A-Za-z0-9._-]{{1,32}}: {tag!r}")
+    return tag
+
+
+def _validate_target(target: str) -> str:
+    """Validate a remote target path for the assembled file.
+
+    Must be an absolute path containing only [A-Za-z0-9/._-], with no '..' —
+    so no spaces, quotes, expansions or other shell metacharacters survive.
+    """
+    if not isinstance(target, str) or not target.startswith("/"):
+        raise ValueError(f"target must be an absolute path: {target!r}")
+    if ".." in target:
+        raise ValueError(f"target must not contain '..': {target!r}")
+    if not TARGET_RE.fullmatch(target):
+        raise ValueError(
+            "target may only contain [A-Za-z0-9/._-] and be at most "
+            f"200 characters: {target!r}")
+    return target
+
+
+def validate_target(target: str) -> str:
+    """Public wrapper so callers (e.g. the CLI) can validate the target
+    before pushing any data."""
+    return _validate_target(target)
 
 
 def to_b64url(data: bytes) -> str:
@@ -21,6 +58,7 @@ def chunk_text(text: str, size: int = CHUNK) -> list[str]:
 
 def push_data(inj, data: bytes, tag: str) -> list[str]:
     """Write data as verified b64url part files; return ordered part paths."""
+    tag = _validate_tag(tag)
     b64 = to_b64url(data)
     inj.do(f"rm{I}-f{I}/tmp/nxseg_{tag}_*")
     parts: list[str] = []
@@ -55,6 +93,7 @@ def assemble(inj, parts: list[str], target: str,
     oracle and raise on mismatch — the backend executes writes asynchronously
     and a late/duplicated segment can silently corrupt the result.
     """
+    target = _validate_target(target)
     groups = [parts[i:i + 6] for i in range(0, len(parts), 6)]
     temps = []
     for gi, g in enumerate(groups):

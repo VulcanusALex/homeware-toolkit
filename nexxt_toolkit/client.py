@@ -6,10 +6,13 @@ Only talks to local/private addresses. Stores the session cookie locally
 
 from __future__ import annotations
 
+import hashlib
+import http.client
 import http.cookiejar
 import ipaddress
 import json
 import os
+import re
 import socket
 import ssl
 import time
@@ -27,6 +30,91 @@ READ_ONLY_SERVICES = (
     "lanipv6details", "firewall_conf", "dmz_conf", "virtual_server_list",
     "upnp_conf", "pingstatusinfo",
 )
+
+
+class FingerprintMismatch(ssl.SSLError):
+    """The peer certificate does not match the pinned SHA-256 fingerprint."""
+
+
+def normalize_tls_fingerprint(fingerprint: str) -> str:
+    """Normalize a SHA-256 fingerprint to 64 lowercase hex chars (no colons).
+
+    Accepts both colon-separated (any case) and plain hex forms.
+    """
+    if not isinstance(fingerprint, str):
+        raise ValueError("TLS fingerprint must be a string")
+    compact = fingerprint.replace(":", "").lower()
+    if not re.fullmatch(r"[0-9a-f]{64}", compact):
+        raise ValueError(
+            "TLS fingerprint must be a 64-hex-character SHA-256 digest "
+            f"(colons optional): {fingerprint!r}")
+    return compact
+
+
+def format_tls_fingerprint(digest_hex: str) -> str:
+    """Render a normalized hex digest in the classic colon-separated form."""
+    compact = normalize_tls_fingerprint(digest_hex)
+    return ":".join(compact[i:i + 2] for i in range(0, 64, 2))
+
+
+class _PinnedHTTPSConnection(http.client.HTTPSConnection):
+    """HTTPSConnection that pins the peer certificate by SHA-256 fingerprint.
+
+    CA verification stays off (the device uses a self-signed certificate);
+    the fingerprint is checked right after the handshake instead.
+    """
+
+    def __init__(self, *args, fingerprint: str | None = None, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._pinned_fingerprint = fingerprint
+
+    def connect(self) -> None:
+        super().connect()
+        if self._pinned_fingerprint is None:
+            return
+        der = self.sock.getpeercert(binary_form=True)
+        actual = hashlib.sha256(der).hexdigest()
+        if actual != self._pinned_fingerprint:
+            self.sock.close()
+            raise FingerprintMismatch(
+                "TLS fingerprint mismatch: device presented "
+                f"{format_tls_fingerprint(actual)} but "
+                f"{format_tls_fingerprint(self._pinned_fingerprint)} was "
+                "pinned; refusing to connect (possible impersonation or "
+                "firmware re-flash)")
+
+
+class _PinnedHTTPSHandler(urllib.request.HTTPSHandler):
+    """HTTPSHandler that builds fingerprint-pinning connections."""
+
+    def __init__(self, context: ssl.SSLContext, fingerprint: str) -> None:
+        super().__init__(context=context)
+        self._pinned_fingerprint = fingerprint
+
+    def https_open(self, req):
+        return self.do_open(
+            lambda host, **kwargs: _PinnedHTTPSConnection(
+                host, context=self._context,
+                fingerprint=self._pinned_fingerprint, **kwargs),
+            req)
+
+
+def fetch_tls_fingerprint(base_url: str = DEFAULT_BASE_URL,
+                          timeout: float = 5.0) -> str:
+    """Fetch the device's TLS certificate and return its SHA-256 fingerprint.
+
+    CA verification is intentionally skipped (self-signed cert) — the point
+    of this helper is to obtain the fingerprint to pin on first contact.
+    """
+    parsed = urllib.parse.urlparse(base_url)
+    if parsed.scheme != "https" or not parsed.hostname:
+        raise RuntimeError("fingerprint fetch requires an https URL with a host")
+    host, port = parsed.hostname, parsed.port or 443
+    context = ssl._create_unverified_context()
+    with socket.create_connection((host, port), timeout=timeout) as raw:
+        with context.wrap_socket(raw, server_hostname=host) as tls:
+            der = tls.getpeercert(binary_form=True)
+    return format_tls_fingerprint(hashlib.sha256(der).hexdigest())
 
 
 def ensure_local_target(host: str) -> list[str]:
@@ -49,7 +137,8 @@ class SessionExpired(RuntimeError):
 
 class NexxtClient:
     def __init__(self, base_url: str = DEFAULT_BASE_URL, timeout: float = 5.0,
-                 work_dir: str = ".work") -> None:
+                 work_dir: str = ".work",
+                 tls_fingerprint: str | None = None) -> None:
         parsed = urllib.parse.urlparse(base_url)
         if parsed.scheme not in {"http", "https"} or not parsed.hostname:
             raise RuntimeError("base URL must be an http(s) URL with a host")
@@ -57,6 +146,11 @@ class NexxtClient:
         ensure_local_target(self.host)
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
+        # Optional certificate pinning: when given, the peer certificate's
+        # SHA-256 fingerprint must match even though CA verification stays
+        # off (the device uses a self-signed certificate).
+        self.tls_fingerprint = (normalize_tls_fingerprint(tls_fingerprint)
+                                if tls_fingerprint is not None else None)
 
         os.makedirs(work_dir, exist_ok=True)
         self.cookie_file = os.path.join(work_dir, "nexxt_session_cookies.txt")
@@ -67,9 +161,13 @@ class NexxtClient:
             except Exception:
                 pass
         context = ssl._create_unverified_context()  # router self-signed cert
+        if self.tls_fingerprint is not None:
+            https_handler = _PinnedHTTPSHandler(context, self.tls_fingerprint)
+        else:
+            https_handler = urllib.request.HTTPSHandler(context=context)
         self.opener = urllib.request.build_opener(
             urllib.request.HTTPCookieProcessor(self.jar),
-            urllib.request.HTTPSHandler(context=context),
+            https_handler,
         )
         self.opener.addheaders = [("User-Agent", USER_AGENT)]
 

@@ -4,6 +4,7 @@ and SSH execution helpers."""
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 import subprocess
 import time
@@ -17,15 +18,45 @@ ROOT_RECORD = f"{STATE_DIR}/root.passwd.before"
 KEY_RECORD = f"{STATE_DIR}/authorized_key"
 OWNER_MARKER = f"{STATE_DIR}/dropbear.{INSTANCE}.owned"
 AUTH_FILES = ("/etc/dropbear/authorized_keys", "/root/.ssh/authorized_keys")
+KNOWN_HOSTS_DIR = os.path.expanduser("~/.nexxt-one-toolkit")
+KNOWN_HOSTS = os.path.join(KNOWN_HOSTS_DIR, "known_hosts")
+# Base options only; host-key verification options are added per call by
+# _host_key_opts() so the TOFU behaviour can be explicitly opted out of.
 SSH_OPTS = [
-    "-o", "StrictHostKeyChecking=no",
-    "-o", "UserKnownHostsFile=/dev/null",
     "-o", "ConnectTimeout=8",
     "-o", "PreferredAuthentications=publickey",
     "-o", "IdentitiesOnly=yes",
     "-o", "HostKeyAlgorithms=+ssh-rsa",
     "-o", "PubkeyAcceptedKeyTypes=+ssh-rsa",
 ]
+
+
+def known_hosts_path() -> str:
+    """Return the toolkit's private known_hosts path, creating it if needed.
+
+    The directory is forced to 0700 and the file to 0600 so other local
+    users can neither read nor replace the trust store.
+    """
+    os.makedirs(KNOWN_HOSTS_DIR, mode=0o700, exist_ok=True)
+    os.chmod(KNOWN_HOSTS_DIR, 0o700)
+    if not os.path.exists(KNOWN_HOSTS):
+        with open(KNOWN_HOSTS, "a", encoding="ascii"):
+            pass
+    os.chmod(KNOWN_HOSTS, 0o600)
+    return KNOWN_HOSTS
+
+
+def _host_key_opts(verify_host_key: bool) -> list[str]:
+    """TOFU by default: accept-new keys into the toolkit's own known_hosts.
+
+    verify_host_key=False restores the legacy fully-unverified behaviour
+    (StrictHostKeyChecking=no + /dev/null) for tests and special cases.
+    """
+    if verify_host_key:
+        return ["-o", "StrictHostKeyChecking=accept-new",
+                "-o", f"UserKnownHostsFile={known_hosts_path()}"]
+    return ["-o", "StrictHostKeyChecking=no",
+            "-o", "UserKnownHostsFile=/dev/null"]
 
 
 def check_pubkey(path: str) -> bytes:
@@ -44,9 +75,11 @@ def host_of(base_url: str) -> str:
 
 
 def ssh_run(host: str, port: int, key: str, remote_cmd: str,
-            timeout: int = 30) -> subprocess.CompletedProcess:
+            timeout: int = 30,
+            verify_host_key: bool = True) -> subprocess.CompletedProcess:
     return subprocess.run(
-        ["ssh", "-i", key, "-p", str(port), *SSH_OPTS, f"root@{host}", remote_cmd],
+        ["ssh", "-i", key, "-p", str(port), *SSH_OPTS,
+         *_host_key_opts(verify_host_key), f"root@{host}", remote_cmd],
         capture_output=True, text=True, timeout=timeout, check=False)
 
 

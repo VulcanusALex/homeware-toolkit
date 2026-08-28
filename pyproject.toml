@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nexxt-one-toolkit"
-version = "1.5.0"
+version = "1.6.0"
 description = "Owner-side toolkit for the Fastweb NeXXt One gateway: guided setup, safe key-only SSH, firewall and inbound diagnostics, upgrade audits"
 readme = "README.md"
 license = "MIT"
@@ -31,3 +31,6 @@ nexxt = "nexxt_toolkit.cli:main"
 
 [tool.setuptools]
 packages = ["nexxt_toolkit"]
+
+[tool.setuptools.package-data]
+nexxt_toolkit = ["compat.json"]

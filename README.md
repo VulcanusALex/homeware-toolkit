@@ -93,14 +93,18 @@ and [security model](SECURITY.md#hardening-notes-for-users).
 
 | Command | Purpose |
 |---|---|
-| `nexxt probe` | Unauthenticated, read-only compatibility check (safe first step) |
+| `nexxt probe` | Unauthenticated, read-only compatibility check (safe first step); `--report` emits a GitHub-issue-ready Markdown report |
 | `nexxt setup` | Guided, transactional path from probe to tested SSH; generates a compatible key locally |
 | `nexxt doctor` | End-to-end health check with per-stage hints |
-| `nexxt session` | Button-assisted login, HAR cookie import, read-only dump |
+| `nexxt session` | Button-assisted login, HAR cookie import, read-only dump, TLS fingerprint for `--tls-fingerprint` pinning |
 | `nexxt verify` | Non-persistent proof of command injection (timing probe + short-lived `/tmp` marker, cleaned up) |
 | `nexxt transfer` | Reliable file transfer through the injection channel (segmented, content-filter-tolerant, oracle-verified) |
-| `nexxt ssh` | Non-destructive **bootstrap / status / run / teardown** with persistent ownership records and exact key rollback |
+| `nexxt ssh` | Non-destructive **bootstrap / status / run / teardown** with persistent ownership records and exact key rollback; host keys are trust-on-first-use |
 | `nexxt fw` | Precise pinholes plus idempotent `ensure` and runtime `audit` — firewall stays ON |
+| `nexxt apply` / `nexxt diff` | Declarative desired state from one JSON file (see `examples/nexxt.json`) — idempotent, transactional, drift preview |
+| `nexxt vpn wireguard` | One-step WireGuard remote access: keys, client/server configs and the gateway pinhole |
+| `nexxt dashboard` | Live read-only terminal dashboard (WAN, 6rd, SSH, firewall) |
+| `nexxt simulate` | In-process fake gateway for development and demos — no hardware needed |
 | `nexxt inbound observe` | Watch a named firewall rule during a fresh external connection; never mistakes no observation for proof of blocking |
 | `nexxt audit-update` | Post-OTA audit of fingerprint, SSH policy, rollback state and firewall runtime |
 | `nexxt support-bundle` | Issue-ready ZIP/JSON with a strict field allowlist and automatic redaction |
@@ -110,7 +114,15 @@ Legacy entry points (`tools/nexxt_probe.py`, `tools/nexxt_session.py`, …) stil
 work and forward to the unified CLI.
 
 Global flags: `--json` (machine-readable), `--quiet`, `--force` (skip the
-firmware fingerprint guard), `--version`.
+firmware fingerprint guard / overwrite generated files), `--tls-fingerprint`
+(pin the gateway certificate), `--version`.
+
+Firmware compatibility is data-driven via
+[`nexxt_toolkit/compat.json`](nexxt_toolkit/compat.json) and tracked in
+[COMPATIBILITY.md](COMPATIBILITY.md); `nexxt probe --report` produces the
+issue-ready report for new firmware. The toolkit is developed hardware-free:
+`nexxt simulate` runs a fake gateway that speaks the same web API, button
+login and injection channel.
 
 Docs:
 

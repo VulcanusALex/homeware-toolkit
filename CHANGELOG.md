@@ -3,6 +3,47 @@
 All notable changes to this project are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/), versioning is semver.
 
+## [1.6.0] - 2026-08-29
+
+### Security
+- `transfer` now strictly validates `--tag` and `<target>` before any command
+  is sent (character allowlists, absolute-path and length rules), closing the
+  last unvalidated interpolation into the injection channel.
+- SSH connections are now trust-on-first-use by default: host keys are
+  recorded in `~/.nexxt-one-toolkit/known_hosts` (0700/0600) with
+  `StrictHostKeyChecking=accept-new`. `ssh run --no-verify-host-key`
+  restores the old behaviour explicitly.
+- Optional TLS certificate pinning: `nexxt session fingerprint` prints the
+  gateway certificate's SHA-256 fingerprint and `--tls-fingerprint` enforces
+  it on every HTTPS request (CA verification remains off for the self-signed
+  device certificate).
+
+### Added
+- `nexxt simulate`: in-process fake gateway (sessions, button login, ping
+  injection channel with an interpreted shell subset, timing behaviour) for
+  hardware-free development and demos, plus 17 integration tests that run
+  probe, login, verify and a full md5-verified transfer against it.
+- `nexxt apply` / `nexxt diff`: declarative desired-state management from a
+  JSON config (firewall pinholes, SSH policy assertions). Idempotent,
+  transactional via the existing ensure/rollback machinery; optional
+  `firewall.prune` removes only toolkit-shaped extra rules.
+  See `examples/nexxt.json`.
+- `nexxt vpn wireguard`: one-step WireGuard remote access — pure-Python
+  RFC 7748 X25519 key generation, server/client configs (0600), unique
+  per-client PSKs and an idempotent IPv6 UDP pinhole on the gateway.
+- `nexxt dashboard`: live read-only curses dashboard (WAN classification,
+  6rd prefixes, SSH and firewall state) with graceful degradation on
+  non-terminals.
+- `nexxt probe --report`: Markdown compatibility report for GitHub issues;
+  firmware fingerprints are now data-driven via `nexxt_toolkit/compat.json`
+  and documented in `COMPATIBILITY.md` — new firmware reports no longer
+  require code changes.
+
+### Changed
+- The injection fingerprint guard now accepts board-matched devices with
+  not-yet-listed firmware as "untested" (warning, still requires no
+  `--force`) instead of refusing outright; unknown boards remain refused.
+
 ## [1.5.0] - 2026-08-27
 
 ### Safety

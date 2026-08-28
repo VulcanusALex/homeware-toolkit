@@ -132,11 +132,35 @@ One command tells you exactly which stage is good/bad/missing:
 ./nexxt fw ensure --key ~/.ssh/nexxt_rsa --name Allow-AWG-v6 \
   --proto udp --dest-ip 2001:db8::123 --dest-port 51820                      # idempotent precise allow
 ./nexxt fw audit --key ~/.ssh/nexxt_rsa                                      # UCI/runtime safety audit
+./nexxt diff -f my-router.json --key ~/.ssh/nexxt_rsa                        # preview drift vs a saved config
+./nexxt apply -f my-router.json --key ~/.ssh/nexxt_rsa                       # converge to it, transactionally
+./nexxt vpn wireguard --key ~/.ssh/nexxt_rsa --server-ipv6 2001:db8::123 \
+  --client phone                                                             # WireGuard keys + configs + pinhole
+./nexxt dashboard --key ~/.ssh/nexxt_rsa                                     # live WAN/SSH/firewall dashboard
 ./nexxt inbound observe --key ~/.ssh/nexxt_rsa --rule Allow-AWG-v6 --wait 30 # make a fresh external connection
 ./nexxt audit-update --key ~/.ssh/nexxt_rsa                                  # after OTA or configuration changes
 ./nexxt support-bundle --key ~/.ssh/nexxt_rsa                                # sanitized issue attachment
 ./nexxt wanwatch --key ~/.ssh/nexxt_rsa                                      # watch for the public IPv4 provisioning
 ```
+
+Tip: pin the gateway certificate once and use it on every call —
+`./nexxt session fingerprint`, then `./nexxt --tls-fingerprint <fp> ...`.
+
+## No hardware? Develop or demo against the simulator
+
+Every feature above except the real hardware handshake can be exercised
+against a fake gateway running on your machine:
+
+```bash
+./nexxt simulate --time-scale 0.1        # serves on http://127.0.0.1:<port>
+./nexxt --base-url http://127.0.0.1:<port> probe
+./nexxt --base-url http://127.0.0.1:<port> session login   # virtual button press
+```
+
+The simulator speaks the same web API, button-login handshake and injection
+channel (backed by an in-memory filesystem). It is what the integration test
+suite runs against, and the fastest way to contribute without owning the
+device.
 
 ## Full rollback
 
@@ -153,6 +177,7 @@ One command tells you exactly which stage is good/bad/missing:
 | `UnknownDeviceError` | Unknown firmware fingerprint; run `./nexxt probe` first, use `--force` only if sure |
 | Handshake rejected after bootstrap | Key isn't RSA; must `ssh-keygen -t rsa` |
 | `no matching host key type found` | Modern OpenSSH needs `-o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedKeyTypes=+ssh-rsa` |
+| Host key warning from `nexxt ssh run` / `fw` | TOFU is on since v1.6.0; if you reinstalled the device, remove the stale line from `~/.nexxt-one-toolkit/known_hosts` |
 | `verify` shows NOT CONFIRMED | Injection patched on this firmware; read-only features only |
 | Existing changes have no ownership record | A v1.4.0-or-older install is present; rerun bootstrap once with `--adopt-legacy` only if you created it with this toolkit |
 | Inbound observer says `not-observed` | Inconclusive: create a fresh client connection; offload or upstream filtering may both produce zero delta |

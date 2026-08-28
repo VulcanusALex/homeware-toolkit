@@ -121,11 +121,32 @@ ssh -i ~/.ssh/nexxt_rsa -p 2222 \
 ./nexxt fw ensure --key ~/.ssh/nexxt_rsa --name Allow-AWG-v6 \
   --proto udp --dest-ip 2001:db8::123 --dest-port 51820                      # 幂等精确放行
 ./nexxt fw audit --key ~/.ssh/nexxt_rsa                                      # UCI/运行态安全审计
+./nexxt diff -f my-router.json --key ~/.ssh/nexxt_rsa                        # 与已保存配置对比差异
+./nexxt apply -f my-router.json --key ~/.ssh/nexxt_rsa                       # 事务式收敛到该配置
+./nexxt vpn wireguard --key ~/.ssh/nexxt_rsa --server-ipv6 2001:db8::123 \
+  --client phone                                                             # WireGuard 密钥+配置+放行一步到位
+./nexxt dashboard --key ~/.ssh/nexxt_rsa                                     # WAN/SSH/防火墙实时仪表盘
 ./nexxt inbound observe --key ~/.ssh/nexxt_rsa --rule Allow-AWG-v6 --wait 30 # 窗口内从外网新建连接
 ./nexxt audit-update --key ~/.ssh/nexxt_rsa                                  # OTA 或配置变化后审计
 ./nexxt support-bundle --key ~/.ssh/nexxt_rsa                                # 生成脱敏 issue 附件
 ./nexxt wanwatch --key ~/.ssh/nexxt_rsa                                      # 监视运营商是否下发了公网 IPv4
 ```
+
+小技巧：先固定一次网关证书指纹，之后每条命令都带着用——
+`./nexxt session fingerprint`，然后 `./nexxt --tls-fingerprint <指纹> ...`。
+
+## 没有硬件？用模拟器开发或演示
+
+除了真机按键握手，以上功能都能在本地假网关上完整演练：
+
+```bash
+./nexxt simulate --time-scale 0.1        # 监听 http://127.0.0.1:<端口>
+./nexxt --base-url http://127.0.0.1:<端口> probe
+./nexxt --base-url http://127.0.0.1:<端口> session login   # 虚拟按键
+```
+
+模拟器实现了同一套 Web API、按键登录握手和注入通道（背后是内存文件系统）。
+集成测试套件就是跑在它上面的，也是没有设备时参与贡献的最快方式。
 
 ## 完全还原
 
@@ -142,6 +163,7 @@ ssh -i ~/.ssh/nexxt_rsa -p 2222 \
 | `UnknownDeviceError` | 固件指纹不识别；先跑 `./nexxt probe` 核对，确实要强行继续再加 `--force` |
 | bootstrap 后握手被拒 | 密钥不是 RSA；必须 `ssh-keygen -t rsa` |
 | `no matching host key type found` | Mac/新版 OpenSSH 需要加 `-o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedKeyTypes=+ssh-rsa` |
+| `nexxt ssh run` / `fw` 报主机密钥警告 | v1.6.0 起默认 TOFU；若设备重装过，删除 `~/.nexxt-one-toolkit/known_hosts` 里的旧行 |
 | `verify` 显示 NOT CONFIRMED | 该固件已修补注入；只有只读功能可用 |
 | 提示旧修改没有所有权记录 | 存在 v1.4.0 或更早安装；仅在确认由本工具创建时加一次 `--adopt-legacy` |
 | 入站观察结果为 `not-observed` | 结论未知，不等于阻断；从外网新建连接再测，硬件快转或上游过滤都可能导致零增量 |

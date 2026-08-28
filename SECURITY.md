@@ -67,3 +67,13 @@ publication, following coordinated disclosure practices.
 - GitHub Releases publish `SHA256SUMS` beside the wheel, source archive and
   standalone `nexxt.pyz`. Verify the selected artifact before running it; the
   README includes a command that checks only the downloaded zipapp entry.
+- Since v1.6.0, SSH-based commands verify the dropbear host key
+  trust-on-first-use against `~/.nexxt-one-toolkit/known_hosts` (0700/0600).
+  A changed key fails the connection; delete the stale line only when you
+  reinstalled the device yourself.
+- The gateway HTTPS certificate is self-signed, so CA validation is off.
+  Pin it with `nexxt session fingerprint` + `--tls-fingerprint <sha256>` to
+  detect a different TLS endpoint answering on the LAN.
+- `transfer` validates `--tag` and the target path against strict character
+  allowlists before any command is sent; `vpn wireguard` writes keys with
+  0600 permissions and never prints private keys.

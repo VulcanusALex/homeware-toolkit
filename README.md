@@ -158,7 +158,11 @@ Docs:
 本项目是 Fastweb NeXXt One 网关（FGA221D / GDNT-S）的开源工具箱：只读兼容性探测、
 Ping 诊断命令注入的无持久化验证、经该通道的可靠文件传输、一键部署
 **持久化、仅密钥、仅 LAN** 的 SSH 服务（可随时 teardown 完全还原）、
-精确防火墙管理、真实入站计数观察、OTA 后安全审计、脱敏支持包与 WAN 状态监控。
+精确防火墙管理、声明式配置收敛（`nexxt apply/diff`）、WireGuard 远程访问一键引导、
+实时终端仪表盘、真实入站计数观察、OTA 后安全审计、脱敏支持包与 WAN 状态监控。
+v1.6.0 起传输参数全面校验、SSH 主机密钥 TOFU 验证、可选 TLS 证书指纹固定；
+新增 `nexxt simulate` 固件模拟器，无需硬件即可开发与演示。固件兼容性由
+[COMPATIBILITY.md](COMPATIBILITY.md) 数据驱动维护，`nexxt probe --report` 一键生成 issue 报告。
 统一入口 `./nexxt`；新用户可直接运行 `./nexxt setup`，已有用户用
 `./nexxt doctor`、`fw audit` 和 `audit-update` 体检。
 推荐用 `pipx install nexxt-one-toolkit` 安装；GitHub Release 也提供带
@@ -175,10 +179,15 @@ sondaggio di compatibilità in sola lettura, verifica non distruttiva della
 command injection nel diagnostico ping, trasferimento file affidabile tramite
 quel canale, e installazione di un servizio **SSH persistente, solo-chiave,
 solo-LAN** (con `teardown` per il ripristino completo), gestione di regole
-firewall precise e idempotenti, verifica del traffico in ingresso, audit dopo
-gli aggiornamenti e report di supporto anonimizzati. `./nexxt setup` guida il
-login con i due pulsanti, la verifica e l'installazione; `./nexxt doctor`
-mostra subito cosa manca. **Da usare solo sul proprio dispositivo.**
+firewall precise e idempotenti, configurazione dichiarativa (`apply`/`diff`),
+bootstrap WireGuard in un passo, dashboard da terminale, verifica del traffico
+in ingresso, audit dopo gli aggiornamenti e report di supporto anonimizzati.
+Dalla v1.6.0: convalida completa degli argomenti di trasferimento, verifica
+TOFU delle host key SSH, pinning opzionale del certificato TLS, e
+`nexxt simulate` — un gateway finto in-processo per sviluppare senza hardware.
+`./nexxt setup` guida il login con i due pulsanti, la verifica e
+l'installazione; `./nexxt doctor` mostra subito cosa manca.
+**Da usare solo sul proprio dispositivo.**
 Guida completa (inglese): [docs/root-guide.md](docs/root-guide.md).
 
 ## License

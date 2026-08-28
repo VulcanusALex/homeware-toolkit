@@ -5,7 +5,8 @@
 > 本仓库所有工具均为原创，未使用任何社区利用代码。
 
 **目录**：0 安全模型 · 1 设备事实 · 2 Web 会话与登录 · 3 命令注入 · 4 时序神谕 ·
-5 可靠文件传输 · 6 持久 SSH · 7 防火墙真相与精确放行 · 8 排障速查 · 9 FAQ · 10 恢复与安全
+5 可靠文件传输 · 6 持久 SSH · 7 防火墙真相与精确放行 · 8 排障速查 · 9 FAQ · 10 恢复与安全 ·
+11 声明式配置 · 12 WireGuard 远程访问 · 13 兼容性数据与报告 · 14 无硬件开发
 
 ---
 
@@ -50,6 +51,9 @@
   期间不要在浏览器打开路由器页面。`nexxt session login` 已自动完成这些。
 - **兜底**：浏览器登录一次，然后 `nexxt session import-cookie <sessionID|capture.har>`。
   浏览器不退出登录，会话一直有效。
+- **TLS 指纹固定（v1.6.0+）**：设备证书是自签的，因此不做 CA 验证。先运行一次
+  `nexxt session fingerprint`，之后加 `--tls-fingerprint <sha256>` 固定证书，
+  可发现 LAN 上被替换的 TLS 端点。
 
 ## 3. 命令注入（FW_058 已证实）
 
@@ -90,6 +94,8 @@ host = :::::::;<条件> && sleep${IFS}8
 5. 用 md5 神谕做端到端校验。
 6. 执行是**异步且可能乱序/迟到**的：早先失败的写可能晚到并覆盖后来的正确内容
    （实测发生过）。传完再审计一遍。
+7. v1.6.0 起，`--tag` 和目标路径在发送任何分段前就会经过严格白名单校验——
+   目标必须是不含 shell 元字符的绝对路径。
 
 ## 6. 持久 SSH（统一 CLI：`nexxt ssh`）
 
@@ -120,6 +126,11 @@ ssh -i <私钥> -p 2222 \
 `teardown` 删除实例、只移除本工具记录的密钥，并恢复安装前保存的完整 root 账户行。
 v1.4.0 或更早安装没有持久所有权记录，需要用 `ssh bootstrap ... --adopt-legacy`
 明确迁移一次；没有这个许可时，工具拒绝猜测和破坏性清理。
+
+**主机密钥验证（v1.6.0+）**：`nexxt ssh run`、`nexxt fw` 等所有走 SSH 的命令现在默认
+TOFU（首次信任）dropbear 主机密钥，记录在 `~/.nexxt-one-toolkit/known_hosts`
+（0700/0600）。密钥变化会直接拒绝连接而不是静默放行；设备确实重装过时，可用
+`ssh run --no-verify-host-key` 显式退回旧行为。
 
 ## 7. 防火墙真相与精确放行
 
@@ -181,3 +192,69 @@ CGNAT 阻断，运营商仍可能提供上游 1:1 NAT。
 - 浏览器 HAR 含 `sessionID`，还可能含 VoIP 凭据（`deviceinfo` 会泄露 base64 的 SIP 密码）——用完删除。
 - 提公开 issue 前运行 `nexxt support-bundle`；它只允许安全固件字段，并自动删除 Cookie、
   凭据、MAC、序列号和原始 IP。上传前仍要人工查看 `report.json`。
+
+## 11. 声明式配置（`nexxt apply` / `nexxt diff`）
+
+除了一条条执行 `fw ensure`，还可以用一个 JSON 文件描述期望状态（见 `examples/nexxt.json`）：
+
+```json
+{
+  "version": 1,
+  "firewall": {
+    "rules": [
+      {"name": "Allow-AWG-v6", "proto": "udp",
+       "dest_ip": "2001:db8::123", "dest_port": 51820}
+    ]
+  },
+  "ssh": {"require_key_only": true, "require_lan_only": true}
+}
+```
+
+- `nexxt diff -f config.json --key K` 是只读的：打印计划（CREATE/UPDATE/DELETE/NOOP
+  及 SSH 策略检查），有待变更时退出码为 2。
+- `nexxt apply -f config.json --key K` 执行收敛：防火墙规则走与 CLI 相同的幂等、
+  备份-回滚 `ensure` 路径；SSH 策略断言（`require_key_only`/`require_lan_only`）
+  不满足时在任何修改之前中止。
+- 重复 apply 是空操作。可选 `"prune": true` 只删除“toolkit 形状”的多余规则
+  （有名字、`src=wan`、ACCEPT、带 dest_ip+dest_port），其余一概不碰。
+
+## 12. WireGuard 远程访问（`nexxt vpn wireguard`）
+
+开放针孔最常见的理由就是从外网经 WireGuard 回家。一条命令搞定密钥、配置和网关规则：
+
+```bash
+nexxt vpn wireguard --key ~/.ssh/nexxt_rsa \
+  --server-ipv6 2001:db8::123 --client phone --client laptop
+```
+
+- 密钥在本地用纯 Python 生成（RFC 7748 X25519，通过官方测试向量验证）——两端都不需要
+  安装 `wg` 工具。
+- 每个客户端独立密钥对 + 独立 PSK；配置写入 `~/.nexxt-one-toolkit/wireguard/`
+  （目录 0700、文件 0600），私钥绝不出现在 stdout 或 `--json` 输出里。
+- WireGuard 服务端运行在 LAN 内一台常开设备上（NAS、树莓派……）——按安全模型，
+  网关上不安装任何第三方软件，网关侧只通过 `fw ensure` 加一条幂等 IPv6 UDP 针孔。
+- `--no-pinhole` 只生成配置不动网关；`--force` 覆盖已有配置文件。之后客户端发起握手时跑
+  `nexxt inbound observe --rule Allow-WG-v6` 即可端到端验证通路。
+
+## 13. 兼容性数据与报告
+
+固件指纹是数据而不是代码：`nexxt_toolkit/compat.json` 列出已知的板型/型号/固件组合，
+随包发布。注入守卫对未知板型直接拒绝，对板型匹配但固件未收录的设备给出警告
+（`untested`），`--force` 可覆盖两者。公开矩阵维护在 `COMPATIBILITY.md`。
+如果你的固件不在列表里，运行 `nexxt probe --report`，把生成的 Markdown 直接粘贴到
+compatibility issue 即可——内容只有探测数据，无需脱敏。
+
+## 14. 无硬件开发（`nexxt simulate`）
+
+`nexxt simulate` 在 `127.0.0.1` 上启动一个假网关：实现了探测指纹用的静态前端资源、
+按键登录握手（虚拟 `press_buttons`）、会话 TTL，以及由内存文件系统和 shell 子集解释器
+支撑的注入通道（`tee`、`grep`、`base64`、`md5sum`、可调时间缩放的 `sleep` 等）。
+
+```bash
+nexxt simulate --time-scale 0.1
+nexxt --base-url http://127.0.0.1:<端口> probe
+nexxt --base-url http://127.0.0.1:<端口> session login
+```
+
+集成测试（`tests/test_simulator.py`）就是对它跑 probe、登录、时序神谕、`verify` 和
+一次完整 md5 校验的 `transfer`。扩展工具箱时先在模拟器上跑通全流程，最后再用真机验证。

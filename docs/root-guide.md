@@ -7,7 +7,9 @@
 
 **Contents:** 1 Device facts · 2 Web session & login · 3 Command injection ·
 4 Timing oracle · 5 Reliable file transfer · 6 Persistent SSH · 7 Firewall
-truths & pinholes · 8 Troubleshooting · 9 FAQ · 10 Recovery & safety
+truths & pinholes · 8 Troubleshooting · 9 FAQ · 10 Recovery & safety ·
+11 Declarative configuration · 12 WireGuard remote access ·
+13 Compatibility data & reports · 14 Hardware-free development
 
 ---
 
@@ -67,6 +69,10 @@ Note: `statusinfo` returns 404 on this firmware.
 - **Fallback:** log in once in a real browser, then
   `nexxt session import-cookie <sessionID|capture.har>`. The session stays
   valid until the browser logs out.
+- **TLS pinning (v1.6.0+):** the device certificate is self-signed, so CA
+  verification is off. Run `nexxt session fingerprint` once and pass
+  `--tls-fingerprint <sha256>` on later calls to pin the certificate and
+  detect a different TLS endpoint on the LAN.
 
 ## 3. Command injection (verified on FW_058)
 
@@ -119,6 +125,9 @@ Measure the baseline first with `host=127.0.0.1`. Proven patterns:
 6. Execution is **asynchronous and can be reordered/late**: a failed write may
    land later and clobber a newer correct file (observed). Re-audit after
    transferring.
+7. Since v1.6.0 the `--tag` and target arguments are validated against strict
+   character allowlists before any segment is sent — the target must be an
+   absolute path without shell metacharacters.
 
 ## 6. Persistent SSH (unified CLI: `nexxt ssh`)
 
@@ -156,6 +165,12 @@ restores the exact root account line captured before installation. A legacy
 installation created by v1.4.0 or older has no ownership record; migrate it
 once with `ssh bootstrap ... --adopt-legacy`. Without that explicit consent,
 the toolkit refuses destructive cleanup or adoption.
+
+**Host-key verification (v1.6.0+):** `nexxt ssh run`, `nexxt fw` and every
+other SSH-based command now trust-on-first-use the dropbear host key into
+`~/.nexxt-one-toolkit/known_hosts` (0700/0600). A changed key fails the
+connection instead of being silently accepted; `--no-verify-host-key` on
+`ssh run` restores the old behaviour when you deliberately reinstalled.
 
 ## 7. Firewall truths & pinholes
 
@@ -230,3 +245,83 @@ CGNAT blocking; an ISP may provide upstream 1:1 NAT.
 - Before opening a public issue, create `nexxt support-bundle`; it only admits
   safe firmware fields and redacts cookies, credentials, MACs, serials and raw
   IP addresses. Review the report before uploading it.
+
+## 11. Declarative configuration (`nexxt apply` / `nexxt diff`)
+
+Instead of issuing `fw ensure` calls one by one, describe the desired state in
+a single JSON file (see `examples/nexxt.json`):
+
+```json
+{
+  "version": 1,
+  "firewall": {
+    "rules": [
+      {"name": "Allow-AWG-v6", "proto": "udp",
+       "dest_ip": "2001:db8::123", "dest_port": 51820}
+    ]
+  },
+  "ssh": {"require_key_only": true, "require_lan_only": true}
+}
+```
+
+- `nexxt diff -f config.json --key K` is read-only: it prints the plan
+  (CREATE/UPDATE/DELETE/NOOP plus SSH policy checks) and exits 2 when changes
+  are pending.
+- `nexxt apply -f config.json --key K` converges: firewall rules go through
+  the same idempotent, backup-and-rollback `ensure` path as the CLI; a failed
+  SSH policy assertion (`require_key_only`/`require_lan_only`) aborts before
+  any change.
+- Applying twice is a no-op. Optional `"prune": true` deletes only
+  toolkit-shaped extra rules (named, `src=wan`, ACCEPT, dest_ip+dest_port);
+  anything else is never touched.
+
+## 12. WireGuard remote access (`nexxt vpn wireguard`)
+
+The most common reason to open a pinhole is reaching home over WireGuard.
+One command covers keys, configs and the gateway rule:
+
+```bash
+nexxt vpn wireguard --key ~/.ssh/nexxt_rsa \
+  --server-ipv6 2001:db8::123 --client phone --client laptop
+```
+
+- Keys are generated locally in pure Python (RFC 7748 X25519, validated
+  against the official test vectors) — no `wg` binary needed on either side.
+- Each client gets its own keypair and PSK; configs land in
+  `~/.nexxt-one-toolkit/wireguard/` (dir 0700, files 0600) and private keys
+  never appear in stdout or `--json` output.
+- The WireGuard server itself runs on an always-on LAN device (NAS, Pi, …) —
+  no third-party software is installed on the gateway, per the safety model.
+  The gateway only gets an idempotent IPv6 UDP pinhole via `fw ensure`.
+- Use `--no-pinhole` to only render configs, and `--force` to overwrite
+  existing config files. Afterwards, `nexxt inbound observe --rule Allow-WG-v6`
+  while a client handshakes proves the path end to end.
+
+## 13. Compatibility data & reports
+
+Firmware fingerprints are data, not code: `nexxt_toolkit/compat.json` lists
+known board/model/firmware combinations and is shipped inside the package.
+The injection guard refuses unknown boards, warns on board-matched but
+unlisted firmware (`untested`), and `--force` overrides both.
+`COMPATIBILITY.md` tracks the public matrix. When your firmware is not listed,
+run `nexxt probe --report` and paste the generated Markdown into a
+compatibility issue — no redaction needed, it contains only probe data.
+
+## 14. Hardware-free development (`nexxt simulate`)
+
+`nexxt simulate` starts a fake gateway on `127.0.0.1` that implements the
+static front-end assets probed for fingerprints, the button-login handshake
+(virtual `press_buttons`), session TTLs, and the ping-injection channel backed
+by an in-memory filesystem with an interpreted shell subset (`tee`, `grep`,
+`base64`, `md5sum`, `sleep` with a configurable time scale, …).
+
+```bash
+nexxt simulate --time-scale 0.1
+nexxt --base-url http://127.0.0.1:<port> probe
+nexxt --base-url http://127.0.0.1:<port> session login
+```
+
+The integration suite (`tests/test_simulator.py`) runs probe, login, the
+timing oracle, `verify` and a full md5-verified `transfer` against it. When
+extending the toolkit, run the whole flow against the simulator first and add
+hardware verification only for the final check.

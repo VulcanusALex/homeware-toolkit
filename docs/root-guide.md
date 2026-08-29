@@ -162,8 +162,9 @@ ssh -i <key> -p 2222 \
 
 `teardown` removes the instance, removes only the recorded toolkit key, and
 restores the exact root account line captured before installation. A legacy
-installation created by v1.4.0 or older has no ownership record; migrate it
-once with `ssh bootstrap ... --adopt-legacy`. Without that explicit consent,
+installation created by nexxt-one-toolkit (any pre-rename version) lives
+under the old state directory; migrate it once with
+`ssh bootstrap ... --adopt-legacy`. Without that explicit consent,
 the toolkit refuses destructive cleanup or adoption.
 
 **Host-key verification (v1.6.0+):** `homeware ssh run`, `homeware fw` and every
@@ -218,7 +219,7 @@ CGNAT blocking; an ISP may provide upstream 1:1 NAT.
 | Long request silently ignored | Host-string length/content limit — split the payload |
 | dropbear starts but key rejected | ed25519 unsupported (use RSA), file must be newline-terminated, `/bin/restricted_shell` blocks login |
 | `not-observed` from inbound observer | Inconclusive; create a new external flow and inspect offload/upstream state |
-| Existing SSH changes have no ownership record | Use `--adopt-legacy` only for a confirmed toolkit <=1.4.0 install; otherwise leave them untouched |
+| Existing SSH changes have no ownership record | Use `--adopt-legacy` only for a confirmed nexxt-one-toolkit (pre-rename) install; otherwise leave them untouched |
 | File content wrong after transfer | Late/arbitrary re-execution clobbered it — re-audit segments and re-write the bad ones |
 
 ## 9. FAQ
@@ -281,7 +282,7 @@ The most common reason to open a pinhole is reaching home over WireGuard.
 One command covers keys, configs and the gateway rule:
 
 ```bash
-homeware vpn wireguard --key ~/.ssh/homeware_rsa \
+homeware vpn wireguard --key ~/.homeware-toolkit/id_rsa \
   --server-ipv6 2001:db8::123 --client phone --client laptop
 ```
 
@@ -325,8 +326,8 @@ by an in-memory filesystem with an interpreted shell subset (`tee`, `grep`,
 
 ```bash
 homeware simulate --time-scale 0.1
-nexxt --base-url http://127.0.0.1:<port> probe
-nexxt --base-url http://127.0.0.1:<port> session login
+homeware --base-url http://127.0.0.1:<port> probe
+homeware --base-url http://127.0.0.1:<port> session login
 ```
 
 The integration suite (`tests/test_simulator.py`) runs probe, login, the

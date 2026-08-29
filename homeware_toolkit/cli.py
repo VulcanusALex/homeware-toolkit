@@ -79,7 +79,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_setup.add_argument("--yes", action="store_true",
                          help="accept the displayed persistent-change step")
     p_setup.add_argument("--adopt-legacy", action="store_true",
-                         help="adopt a confirmed <=1.4.0 toolkit installation")
+                         help="adopt a confirmed nexxt-one-toolkit (pre-rename) installation")
     p_setup.add_argument("--wizard", action="store_true",
                          help="open a browser-based setup wizard on localhost")
 
@@ -118,7 +118,7 @@ def build_parser() -> argparse.ArgumentParser:
     s_boot.add_argument("--test", action="store_true")
     s_boot.add_argument("--dry-run", action="store_true")
     s_boot.add_argument("--adopt-legacy", action="store_true",
-                        help="adopt a confirmed <=1.4.0 toolkit installation")
+                        help="adopt a confirmed nexxt-one-toolkit (pre-rename) installation")
     s_boot.add_argument("--original-shell", default="/bin/restricted_shell",
                         help="pre-toolkit shell used only with --adopt-legacy")
     s_stat = ssh_sub.add_parser("status")
@@ -134,7 +134,7 @@ def build_parser() -> argparse.ArgumentParser:
     s_down = ssh_sub.add_parser("teardown")
     s_down.add_argument("--port", type=int, default=2222)
     s_down.add_argument("--legacy-force", action="store_true",
-                        help="use old destructive cleanup only for <=1.4.0 installs")
+                        help="use old destructive cleanup only for confirmed <=1.4.0 installs")
 
     p_fw = sub.add_parser("fw", help="precise firewall pinholes (over SSH)")
     fw_sub = p_fw.add_subparsers(dest="fw_cmd", required=True)
@@ -180,7 +180,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_ww.add_argument("--key", required=True)
     p_ww.add_argument("--port", type=int, default=2222)
     p_ww.add_argument("--state-file",
-                      default="~/.homeware_wanwatch_state.json")
+                      default="~/.homeware-toolkit/wanwatch_state.json")
     p_ww.add_argument("--notify", action="store_true",
                       help="desktop notification on change (macOS; no-op elsewhere)")
 
@@ -218,7 +218,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_dash.add_argument("--port", type=int, default=2222)
     p_dash.add_argument("--refresh", type=float, default=5.0)
     p_dash.add_argument("--state-file",
-                        default="~/.homeware_wanwatch_state.json",
+                        default="~/.homeware-toolkit/wanwatch_state.json",
                         help="wanwatch state file for the WAN panel")
 
     p_sim = sub.add_parser("simulate",

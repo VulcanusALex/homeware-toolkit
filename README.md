@@ -82,7 +82,7 @@ chmod +x homeware.pyz
 Cloning the repository remains the best option for development and for reading
 the guides alongside the tool. All three forms expose the same `homeware` CLI.
 
-### Upgrade from v1.4.0 or older
+### Upgrade from nexxt-one-toolkit
 
 Old releases did not persist enough ownership information for exact rollback.
 After upgrading the local CLI, adopt an existing toolkit-created installation
@@ -183,8 +183,9 @@ Docs:
 - Existing authorized keys are preserved. The toolkit records only its own key
   and original root account line in a root-only persistent state directory.
 - `teardown` removes only toolkit-owned state and restores the recorded shell.
-- Upgrading an installation made by v1.4.0 or older requires the explicit
-  `--adopt-legacy` migration flag; the tool refuses to guess ownership.
+- Upgrading an installation made by nexxt-one-toolkit (any pre-rename
+  version) requires the explicit `--adopt-legacy` migration flag; the tool
+  refuses to guess ownership.
 
 ## 中文摘要
 
@@ -201,7 +202,7 @@ v1.6.0 起传输参数全面校验、SSH 主机密钥 TOFU 验证、可选 TLS �
 统一入口 `./homeware`；新用户可直接运行 `./homeware setup`，已有用户用
 `./homeware doctor`、`fw audit` 和 `audit-update` 体检。
 推荐用 `pipx install homeware-toolkit` 安装；GitHub Release 也提供带
-`SHA256SUMS` 的独立 `homeware.pyz`。从 v1.4.0 或更早版升级时，只有在确认
+`SHA256SUMS` 的独立 `homeware.pyz`。从 nexxt-one-toolkit（改名前的任意版本）升级时，只有在确认
 现有 SSH 修改由本工具创建后，才执行一次 `--adopt-legacy` 迁移。
 新用户建议从 [docs/quickstart.zh-CN.md](docs/quickstart.zh-CN.md)（逐步图文）开始。
 **仅限用于你自己的设备**。完整中文文档见

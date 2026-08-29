@@ -48,9 +48,10 @@ class TransferMd5Verify(unittest.TestCase):
 
 class PathExpansion(unittest.TestCase):
     def test_leading_tilde_expands(self):
-        self.assertEqual(os.path.expanduser("~/.homeware_wanwatch_state.json"),
+        self.assertEqual(os.path.expanduser("~/.homeware-toolkit/wanwatch_state.json"),
                          os.path.join(os.path.expanduser("~"),
-                                      ".homeware_wanwatch_state.json"))
+                                      ".homeware-toolkit",
+                                      "wanwatch_state.json"))
 
     def test_embedded_tilde_untouched(self):
         self.assertEqual(os.path.expanduser("/tmp/a~b.json"), "/tmp/a~b.json")

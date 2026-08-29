@@ -14,16 +14,13 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
-import sys
 import threading
-import time
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 from . import __version__
 from .client import GatewayClient
-from .driver import default_device, detect_from_sysinfo
+from .driver import detect_from_sysinfo
 
 WIZARD_HTML = """<!doctype html>
 <html lang="en">
@@ -182,7 +179,7 @@ function finish() {
   show('step-done');
   $('done-cmd').textContent = 'ssh -i ~/.homeware-toolkit/id_rsa -p 2222 ' +
     '-o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedKeyTypes=+ssh-rsa ' +
-    'root@' + window.location.hostname.replace(/:$/, '');
+    'root@{gateway_host}';
 }
 </script>
 </body>
@@ -260,7 +257,11 @@ def make_handler(state: WizardState):
             path = parsed.path
 
             if path == "/" or path == "/index.html":
-                html = WIZARD_HTML.replace("{version}", __version__)
+                html = (WIZARD_HTML
+                        .replace("{version}", __version__)
+                        .replace("{gateway_host}",
+                                 urllib.parse.urlparse(state.base_url).hostname
+                                 or "192.168.1.254"))
                 _text_response(self, html, content_type="text/html")
                 return
 

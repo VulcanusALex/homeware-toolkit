@@ -90,10 +90,10 @@ root-only ownership directory → patches the shell → appends (never overwrite
 its recorded public key → creates a key-only, LAN-only dropbear instance →
 restarts the service → **verifies the handshake itself**.
 
-If the device was bootstrapped by toolkit v1.4.0 or older, migrate it once:
+If the device was bootstrapped by nexxt-one-toolkit (any pre-rename version), migrate it once:
 
 ```bash
-./homeware ssh bootstrap --pubkey ~/.ssh/homeware_rsa.pub --test --adopt-legacy
+./homeware ssh bootstrap --pubkey ~/.homeware-toolkit/id_rsa.pub --test --adopt-legacy
 ```
 
 Without that explicit flag, an unowned pre-existing `dropbear.nx` or patched
@@ -102,7 +102,7 @@ root shell is left untouched.
 `handshake OK` means you can connect:
 
 ```bash
-ssh -i ~/.ssh/homeware_rsa -p 2222 \
+ssh -i ~/.homeware-toolkit/id_rsa -p 2222 \
   -o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedKeyTypes=+ssh-rsa \
   root@192.168.1.254
 ```
@@ -127,20 +127,20 @@ One command tells you exactly which stage is good/bad/missing:
 ## Everyday usage
 
 ```bash
-./homeware ssh run "ip6tables -L zone_wan_forward -nv" --key ~/.ssh/homeware_rsa   # run commands on the router
-./homeware fw list --key ~/.ssh/homeware_rsa                                       # list pinhole rules
-./homeware fw ensure --key ~/.ssh/homeware_rsa --name Allow-AWG-v6 \
+./homeware ssh run "ip6tables -L zone_wan_forward -nv" --key ~/.homeware-toolkit/id_rsa   # run commands on the router
+./homeware fw list --key ~/.homeware-toolkit/id_rsa                                       # list pinhole rules
+./homeware fw ensure --key ~/.homeware-toolkit/id_rsa --name Allow-AWG-v6 \
   --proto udp --dest-ip 2001:db8::123 --dest-port 51820                      # idempotent precise allow
-./homeware fw audit --key ~/.ssh/homeware_rsa                                      # UCI/runtime safety audit
-./homeware diff -f my-router.json --key ~/.ssh/homeware_rsa                        # preview drift vs a saved config
-./homeware apply -f my-router.json --key ~/.ssh/homeware_rsa                       # converge to it, transactionally
-./homeware vpn wireguard --key ~/.ssh/homeware_rsa --server-ipv6 2001:db8::123 \
+./homeware fw audit --key ~/.homeware-toolkit/id_rsa                                      # UCI/runtime safety audit
+./homeware diff -f my-router.json --key ~/.homeware-toolkit/id_rsa                        # preview drift vs a saved config
+./homeware apply -f my-router.json --key ~/.homeware-toolkit/id_rsa                       # converge to it, transactionally
+./homeware vpn wireguard --key ~/.homeware-toolkit/id_rsa --server-ipv6 2001:db8::123 \
   --client phone                                                             # WireGuard keys + configs + pinhole
-./homeware dashboard --key ~/.ssh/homeware_rsa                                     # live WAN/SSH/firewall dashboard
-./homeware inbound observe --key ~/.ssh/homeware_rsa --rule Allow-AWG-v6 --wait 30 # make a fresh external connection
-./homeware audit-update --key ~/.ssh/homeware_rsa                                  # after OTA or configuration changes
-./homeware support-bundle --key ~/.ssh/homeware_rsa                                # sanitized issue attachment
-./homeware wanwatch --key ~/.ssh/homeware_rsa                                      # watch for the public IPv4 provisioning
+./homeware dashboard --key ~/.homeware-toolkit/id_rsa                                     # live WAN/SSH/firewall dashboard
+./homeware inbound observe --key ~/.homeware-toolkit/id_rsa --rule Allow-AWG-v6 --wait 30 # make a fresh external connection
+./homeware audit-update --key ~/.homeware-toolkit/id_rsa                                  # after OTA or configuration changes
+./homeware support-bundle --key ~/.homeware-toolkit/id_rsa                                # sanitized issue attachment
+./homeware wanwatch --key ~/.homeware-toolkit/id_rsa                                      # watch for the public IPv4 provisioning
 ```
 
 Tip: pin the gateway certificate once and use it on every call —
@@ -179,7 +179,7 @@ device.
 | `no matching host key type found` | Modern OpenSSH needs `-o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedKeyTypes=+ssh-rsa` |
 | Host key warning from `homeware ssh run` / `fw` | TOFU is on since v1.6.0; if you reinstalled the device, remove the stale line from `~/.homeware-toolkit/known_hosts` |
 | `verify` shows NOT CONFIRMED | Injection patched on this firmware; read-only features only |
-| Existing changes have no ownership record | A v1.4.0-or-older install is present; rerun bootstrap once with `--adopt-legacy` only if you created it with this toolkit |
+| Existing changes have no ownership record | A nexxt-one-toolkit (pre-rename) install is present; rerun bootstrap once with `--adopt-legacy` only if you created it with this toolkit |
 | Inbound observer says `not-observed` | Inconclusive: create a fresh client connection; offload or upstream filtering may both produce zero delta |
 
 ## Next steps

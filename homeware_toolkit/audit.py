@@ -18,30 +18,39 @@ def _check(items: list[dict], name: str, ok: bool, detail: str,
 
 def run_audit(base_url: str, port: int, key: str,
               state_file: str = "~/.homeware-toolkit/audit-state.json",
-              accept_change: bool = False) -> tuple[dict, int]:
+              accept_change: bool = False,
+              device=None) -> tuple[dict, int]:
     checks: list[dict] = []
     probe = run_probe(base_url)
     signal = probe["analysis"]["compatibility_signal"]
     _check(checks, "firmware-fingerprint", signal == "strong-front-end-match", signal,
            "do not run injection commands until compatibility is reviewed")
 
+    from .driver import default_device
+    from .ssh import STATE_DIR
+    device = device or default_device()
+    ssh_service = device.cap("ssh", "service", default="dropbear")
+    ssh_instance = device.cap("ssh", "instance", default="nx")
+
     host = host_of(base_url)
     proc = ssh_run(
         host, port, key,
         "printf '%s\\n' __SHELL__; grep '^root:' /etc/passwd; "
-        "printf '%s\\n' __DROPBEAR__; uci -q show dropbear.nx; "
-        "printf '%s\\n' __STATE__; test -s /etc/homeware-toolkit/dropbear.nx.owned && echo managed")
+        f"printf '%s\\n' __DROPBEAR__; uci -q show {ssh_service}.{ssh_instance}; "
+        f"printf '%s\\n' __STATE__; test -s {STATE_DIR}/{ssh_service}.{ssh_instance}.owned && echo managed")
     ssh_ok = proc.returncode == 0
     _check(checks, "ssh-handshake", ssh_ok,
            "reachable with key" if ssh_ok else (proc.stderr.strip() or "failed"),
            "run setup again only after reviewing the firmware change")
     text = proc.stdout if ssh_ok else ""
-    _check(checks, "root-shell", "/bin/ash" in text, "expected /bin/ash")
+    ssh_shell = device.cap("ssh", "shell", default="/bin/ash")
+    _check(checks, "root-shell", f"{ssh_shell}" in text, f"expected {ssh_shell}")
     hardened = all(token in text for token in (
-        "dropbear.nx.Interface='lan'", "dropbear.nx.PasswordAuth='off'",
-        "dropbear.nx.RootPasswordAuth='off'"))
+        f"{ssh_service}.{ssh_instance}.Interface='lan'",
+        f"{ssh_service}.{ssh_instance}.PasswordAuth='off'",
+        f"{ssh_service}.{ssh_instance}.RootPasswordAuth='off'"))
     _check(checks, "ssh-policy", hardened, "LAN-only and password auth disabled",
-           "repair the nx UCI instance before exposing SSH")
+           f"repair the {ssh_instance} UCI instance before exposing SSH")
     managed = "__STATE__\nmanaged" in text
     _check(checks, "rollback-state", managed, "persistent ownership record",
            "adopt a legacy install before relying on automatic teardown", warning=True)

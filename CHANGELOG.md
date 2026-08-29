@@ -3,7 +3,22 @@
 All notable changes to this project are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/), versioning is semver.
 
-## [Unreleased]
+## [2.0.0] - 2026-08-30
+
+### Upgrade notes
+- The project was renamed twice during this cycle (`nexxt-one-toolkit` →
+  `home-gateway-toolkit` → `homeware-toolkit`); only the final name was
+  released.  Reinstall with `pipx install homeware-toolkit`; the CLI command
+  is now `homeware`.
+- On-device state moved from `/etc/nexxt-toolkit` to
+  `/etc/homeware-toolkit`.  Existing installs are adopted with
+  `homeware ssh bootstrap ... --adopt-legacy`, which also migrates the old
+  directory.
+- The local TOFU store moved from `~/.nexxt-one-toolkit/known_hosts` to
+  `~/.homeware-toolkit/known_hosts`; the first SSH connection after upgrade
+  re-trusts the device key (expected, safe by design).
+- Local state (keys, known_hosts, audit baseline, wanwatch state) is now
+  consolidated under `~/.homeware-toolkit/`.
 
 ### Added
 - Device-driver framework: `compat.json` schema 2 adds `driver` and
@@ -74,12 +89,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/), versioning is se
 
 ## [1.6.0] - 2026-08-29
 
+> Released as **nexxt-one-toolkit** (CLI `nexxt`, state under
+> `~/.nexxt-one-toolkit/` and `/etc/nexxt-toolkit`).  Command and path
+> examples below use the current `homeware` names; substitute `nexxt` when
+> running the historical release.
+
 ### Security
 - `transfer` now strictly validates `--tag` and `<target>` before any command
   is sent (character allowlists, absolute-path and length rules), closing the
   last unvalidated interpolation into the injection channel.
 - SSH connections are now trust-on-first-use by default: host keys are
-  recorded in `~/.homeware-toolkit/known_hosts` (0700/0600) with
+  recorded in `~/.nexxt-one-toolkit/known_hosts` (0700/0600) with
   `StrictHostKeyChecking=accept-new`. `ssh run --no-verify-host-key`
   restores the old behaviour explicitly.
 - Optional TLS certificate pinning: `homeware session fingerprint` prints the

@@ -278,7 +278,7 @@ def teardown(inj, port: int, log=print, legacy_force: bool = False) -> None:
         raise RuntimeError(
             "no persistent ownership record found; refusing destructive "
             "legacy teardown. Use --legacy-force only for a confirmed "
-            "homeware-toolkit <=1.4.0 installation")
+            "nexxt-one-toolkit (pre-rename) installation")
 
     if owned:
         _remove_recorded_key(inj)

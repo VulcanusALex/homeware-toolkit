@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "homeware-toolkit"
-version = "1.6.0"
+version = "2.0.0"
 description = "Owner-side toolkit for Technicolor/Vantiva Homeware gateways (ISP-locked routers): guided setup, safe key-only SSH, firewall and inbound diagnostics, upgrade audits"
 readme = "README.md"
 license = "MIT"

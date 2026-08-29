@@ -124,7 +124,7 @@ ssh -i <私钥> -p 2222 \
 ```
 
 `teardown` 删除实例、只移除本工具记录的密钥，并恢复安装前保存的完整 root 账户行。
-v1.4.0 或更早安装没有持久所有权记录，需要用 `ssh bootstrap ... --adopt-legacy`
+nexxt-one-toolkit（改名前）安装的状态仍在旧目录，需要用 `ssh bootstrap ... --adopt-legacy`
 明确迁移一次；没有这个许可时，工具拒绝猜测和破坏性清理。
 
 **主机密钥验证（v1.6.0+）**：`homeware ssh run`、`homeware fw` 等所有走 SSH 的命令现在默认
@@ -173,7 +173,7 @@ CGNAT 阻断，运营商仍可能提供上游 1:1 NAT。
 | 长请求被静默忽略 | host 长度/内容限制——拆短 |
 | dropbear 起来了但密钥被拒 | ed25519 不支持（用 RSA）；文件须以换行结尾；`/bin/restricted_shell` 会挡登录 |
 | 入站观察为 `not-observed` | 结论未知；从外网新建流量，并检查硬件快转和上游状态 |
-| 旧 SSH 修改没有所有权记录 | 只有确认由 v1.4.0 或更早工具创建时才用 `--adopt-legacy` |
+| 旧 SSH 修改没有所有权记录 | 只有确认由 nexxt-one-toolkit（改名前）创建时才用 `--adopt-legacy` |
 | 传输后文件内容不对 | 迟到/乱序执行覆盖了正确内容——重新审计分段并重写坏段 |
 
 ## 9. FAQ
@@ -223,7 +223,7 @@ CGNAT 阻断，运营商仍可能提供上游 1:1 NAT。
 开放针孔最常见的理由就是从外网经 WireGuard 回家。一条命令搞定密钥、配置和网关规则：
 
 ```bash
-homeware vpn wireguard --key ~/.ssh/homeware_rsa \
+homeware vpn wireguard --key ~/.homeware-toolkit/id_rsa \
   --server-ipv6 2001:db8::123 --client phone --client laptop
 ```
 
@@ -252,8 +252,8 @@ compatibility issue 即可——内容只有探测数据，无需脱敏。
 
 ```bash
 homeware simulate --time-scale 0.1
-nexxt --base-url http://127.0.0.1:<端口> probe
-nexxt --base-url http://127.0.0.1:<端口> session login
+homeware --base-url http://127.0.0.1:<端口> probe
+homeware --base-url http://127.0.0.1:<端口> session login
 ```
 
 集成测试（`tests/test_simulator.py`）就是对它跑 probe、登录、时序神谕、`verify` 和

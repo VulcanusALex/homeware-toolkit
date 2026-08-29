@@ -82,10 +82,10 @@ SSH 部署将不可用（只读功能仍可用）。
 只追加并记录自己的公钥（不覆盖既有密钥）→ 创建仅密钥、仅 LAN 的 dropbear 实例 →
 重启服务 → **自动试握手**。
 
-如果设备曾由 v1.4.0 或更早版本部署过，需要明确迁移一次：
+如果设备曾由 nexxt-one-toolkit（改名前的任意版本）部署过，需要明确迁移一次：
 
 ```bash
-./homeware ssh bootstrap --pubkey ~/.ssh/homeware_rsa.pub --test --adopt-legacy
+./homeware ssh bootstrap --pubkey ~/.homeware-toolkit/id_rsa.pub --test --adopt-legacy
 ```
 
 没有这个参数时，工具遇到无所有权记录的旧 `dropbear.nx` 或已修改 shell 会拒绝覆盖。
@@ -93,7 +93,7 @@ SSH 部署将不可用（只读功能仍可用）。
 看到 `handshake OK` 就可以连接了：
 
 ```bash
-ssh -i ~/.ssh/homeware_rsa -p 2222 \
+ssh -i ~/.homeware-toolkit/id_rsa -p 2222 \
   -o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedKeyTypes=+ssh-rsa \
   root@192.168.1.254
 ```
@@ -116,20 +116,20 @@ ssh -i ~/.ssh/homeware_rsa -p 2222 \
 ## 日常用法
 
 ```bash
-./homeware ssh run "ip6tables -L zone_wan_forward -nv" --key ~/.ssh/homeware_rsa   # 在路由器上执行命令
-./homeware fw list --key ~/.ssh/homeware_rsa                                       # 看放行规则
-./homeware fw ensure --key ~/.ssh/homeware_rsa --name Allow-AWG-v6 \
+./homeware ssh run "ip6tables -L zone_wan_forward -nv" --key ~/.homeware-toolkit/id_rsa   # 在路由器上执行命令
+./homeware fw list --key ~/.homeware-toolkit/id_rsa                                       # 看放行规则
+./homeware fw ensure --key ~/.homeware-toolkit/id_rsa --name Allow-AWG-v6 \
   --proto udp --dest-ip 2001:db8::123 --dest-port 51820                      # 幂等精确放行
-./homeware fw audit --key ~/.ssh/homeware_rsa                                      # UCI/运行态安全审计
-./homeware diff -f my-router.json --key ~/.ssh/homeware_rsa                        # 与已保存配置对比差异
-./homeware apply -f my-router.json --key ~/.ssh/homeware_rsa                       # 事务式收敛到该配置
-./homeware vpn wireguard --key ~/.ssh/homeware_rsa --server-ipv6 2001:db8::123 \
+./homeware fw audit --key ~/.homeware-toolkit/id_rsa                                      # UCI/运行态安全审计
+./homeware diff -f my-router.json --key ~/.homeware-toolkit/id_rsa                        # 与已保存配置对比差异
+./homeware apply -f my-router.json --key ~/.homeware-toolkit/id_rsa                       # 事务式收敛到该配置
+./homeware vpn wireguard --key ~/.homeware-toolkit/id_rsa --server-ipv6 2001:db8::123 \
   --client phone                                                             # WireGuard 密钥+配置+放行一步到位
-./homeware dashboard --key ~/.ssh/homeware_rsa                                     # WAN/SSH/防火墙实时仪表盘
-./homeware inbound observe --key ~/.ssh/homeware_rsa --rule Allow-AWG-v6 --wait 30 # 窗口内从外网新建连接
-./homeware audit-update --key ~/.ssh/homeware_rsa                                  # OTA 或配置变化后审计
-./homeware support-bundle --key ~/.ssh/homeware_rsa                                # 生成脱敏 issue 附件
-./homeware wanwatch --key ~/.ssh/homeware_rsa                                      # 监视运营商是否下发了公网 IPv4
+./homeware dashboard --key ~/.homeware-toolkit/id_rsa                                     # WAN/SSH/防火墙实时仪表盘
+./homeware inbound observe --key ~/.homeware-toolkit/id_rsa --rule Allow-AWG-v6 --wait 30 # 窗口内从外网新建连接
+./homeware audit-update --key ~/.homeware-toolkit/id_rsa                                  # OTA 或配置变化后审计
+./homeware support-bundle --key ~/.homeware-toolkit/id_rsa                                # 生成脱敏 issue 附件
+./homeware wanwatch --key ~/.homeware-toolkit/id_rsa                                      # 监视运营商是否下发了公网 IPv4
 ```
 
 小技巧：先固定一次网关证书指纹，之后每条命令都带着用——
@@ -165,7 +165,7 @@ ssh -i ~/.ssh/homeware_rsa -p 2222 \
 | `no matching host key type found` | Mac/新版 OpenSSH 需要加 `-o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedKeyTypes=+ssh-rsa` |
 | `homeware ssh run` / `fw` 报主机密钥警告 | v1.6.0 起默认 TOFU；若设备重装过，删除 `~/.homeware-toolkit/known_hosts` 里的旧行 |
 | `verify` 显示 NOT CONFIRMED | 该固件已修补注入；只有只读功能可用 |
-| 提示旧修改没有所有权记录 | 存在 v1.4.0 或更早安装；仅在确认由本工具创建时加一次 `--adopt-legacy` |
+| 提示旧修改没有所有权记录 | 存在 nexxt-one-toolkit（改名前）安装；仅在确认由本工具创建时加一次 `--adopt-legacy` |
 | 入站观察结果为 `not-observed` | 结论未知，不等于阻断；从外网新建连接再测，硬件快转或上游过滤都可能导致零增量 |
 
 ## 下一步

@@ -1,4 +1,4 @@
-"""Hardware-free unit tests for home-gateway-toolkit core logic.
+"""Hardware-free unit tests for homeware-toolkit core logic.
 
 Run: python -m unittest discover -s tests -v
 """
@@ -15,13 +15,13 @@ from unittest import mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-from home_gateway_toolkit import transfer, wanwatch  # noqa: E402
-from home_gateway_toolkit import inject as inject_mod  # noqa: E402
-from home_gateway_toolkit import ssh as ssh_mod  # noqa: E402
-from home_gateway_toolkit.cli import build_parser  # noqa: E402
-from home_gateway_toolkit.client import GatewayClient  # noqa: E402
-from home_gateway_toolkit.doctor import _wan_class  # noqa: E402
-from home_gateway_toolkit.firewall import NAME_RE  # noqa: E402
+from homeware_toolkit import transfer, wanwatch  # noqa: E402
+from homeware_toolkit import inject as inject_mod  # noqa: E402
+from homeware_toolkit import ssh as ssh_mod  # noqa: E402
+from homeware_toolkit.cli import build_parser  # noqa: E402
+from homeware_toolkit.client import GatewayClient  # noqa: E402
+from homeware_toolkit.doctor import _wan_class  # noqa: E402
+from homeware_toolkit.firewall import NAME_RE  # noqa: E402
 
 
 class TestTransferEncoding(unittest.TestCase):
@@ -111,7 +111,7 @@ class MockClient:
 
     def require_auth(self):
         if not self._authed:
-            from home_gateway_toolkit.client import SessionExpired
+            from homeware_toolkit.client import SessionExpired
             raise SessionExpired("nope")
 
     def get(self, service, **params):

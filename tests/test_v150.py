@@ -9,8 +9,8 @@ import unittest
 import zipfile
 from unittest import mock
 
-from home_gateway_toolkit import audit, doctor, egress, firewall, inbound, setup, ssh, support
-from home_gateway_toolkit.cli import build_parser
+from homeware_toolkit import audit, doctor, egress, firewall, inbound, setup, ssh, support
+from homeware_toolkit.cli import build_parser
 
 
 class _Inj:

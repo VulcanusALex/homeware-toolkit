@@ -3,14 +3,14 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "home-gateway-toolkit"
+name = "homeware-toolkit"
 version = "1.6.0"
-description = "Owner-side toolkit for residential gateways: guided setup, safe key-only SSH, firewall and inbound diagnostics, upgrade audits"
+description = "Owner-side toolkit for Technicolor/Vantiva Homeware gateways (ISP-locked routers): guided setup, safe key-only SSH, firewall and inbound diagnostics, upgrade audits"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.9"
 authors = [{name = "VulcanusALex"}]
-keywords = ["fastweb", "nexxt", "fga221d", "gdnt-s", "router", "ssh", "ipv6", "6rd"]
+keywords = ["homeware", "technicolor", "vantiva", "fastweb", "vodafone", "nexxt", "fga221d", "gdnt-s", "router", "gateway", "ssh", "ipv6", "6rd"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Environment :: Console",
@@ -22,15 +22,15 @@ classifiers = [
 dependencies = []
 
 [project.urls]
-Homepage = "https://github.com/VulcanusALex/home-gateway-toolkit"
-Documentation = "https://github.com/VulcanusALex/home-gateway-toolkit/tree/main/docs"
-Issues = "https://github.com/VulcanusALex/home-gateway-toolkit/issues"
+Homepage = "https://github.com/VulcanusALex/homeware-toolkit"
+Documentation = "https://github.com/VulcanusALex/homeware-toolkit/tree/main/docs"
+Issues = "https://github.com/VulcanusALex/homeware-toolkit/issues"
 
 [project.scripts]
-home-gateway = "home_gateway_toolkit.cli:main"
+homeware = "homeware_toolkit.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["home_gateway_toolkit*"]
+include = ["homeware_toolkit*"]
 
 [tool.setuptools.package-data]
-home_gateway_toolkit = ["compat.json"]
+homeware_toolkit = ["compat.json"]

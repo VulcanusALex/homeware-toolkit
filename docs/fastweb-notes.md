@@ -52,7 +52,7 @@
 
 **Viable ways out:**
 
-1. Run `home-gateway inbound observe --rule NAME --key KEY` while starting a new
+1. Run `homeware inbound observe --rule NAME --key KEY` while starting a new
    external connection. A positive delta proves arrival at the gateway; zero
    is inconclusive and must not be labelled "blocked" without more evidence.
 2. Ask Fastweb to verify static-public-IP / 1:1-NAT provisioning and inbound

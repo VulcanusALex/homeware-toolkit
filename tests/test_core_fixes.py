@@ -4,9 +4,9 @@ import unittest
 import urllib.error
 from unittest import mock
 
-from home_gateway_toolkit import __version__
-from home_gateway_toolkit import probe
-from home_gateway_toolkit import inject as inject_mod
+from homeware_toolkit import __version__
+from homeware_toolkit import probe
+from homeware_toolkit import inject as inject_mod
 
 
 STRONG = {
@@ -44,7 +44,7 @@ class ProbeCrashRegression(unittest.TestCase):
 
 class UserAgentVersion(unittest.TestCase):
     def test_constant_uses_version(self):
-        self.assertEqual(probe.USER_AGENT, f"home-gateway-toolkit/{__version__}")
+        self.assertEqual(probe.USER_AGENT, f"homeware-toolkit/{__version__}")
         self.assertNotIn("1.2", probe.USER_AGENT)
 
     def test_fetch_actually_sends_versioned_ua(self):

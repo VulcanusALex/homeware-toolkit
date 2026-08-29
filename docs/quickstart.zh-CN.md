@@ -11,17 +11,17 @@
 - 下载本仓库：
 
 ```bash
-git clone https://github.com/VulcanusALex/home-gateway-toolkit.git
-cd home-gateway-toolkit
+git clone https://github.com/VulcanusALex/homeware-toolkit.git
+cd homeware-toolkit
 ```
 
-> 后文所有 `./home-gateway` 命令都在仓库根目录执行。Windows 原生 cmd 请用
-> `python home_gateway_toolkit/cli.py` 替代（或直接用 WSL）。
+> 后文所有 `./homeware` 命令都在仓库根目录执行。Windows 原生 cmd 请用
+> `python homeware_toolkit/cli.py` 替代（或直接用 WSL）。
 
-也可用 `pipx install home-gateway-toolkit` 安装同一个 CLI，或从最新 GitHub
-Release 下载独立 `home_gateway.pyz` 和 `SHA256SUMS`；README 提供了校验和运行命令。
-使用已安装的版本时，把下文 `./home-gateway` 换成 `home-gateway`；使用 zipapp 时换成
-`./home_gateway.pyz`。
+也可用 `pipx install homeware-toolkit` 安装同一个 CLI，或从最新 GitHub
+Release 下载独立 `homeware.pyz` 和 `SHA256SUMS`；README 提供了校验和运行命令。
+使用已安装的版本时，把下文 `./homeware` 换成 `homeware`；使用 zipapp 时换成
+`./homeware.pyz`。
 
 ## 推荐：一条命令完成安全部署
 
@@ -29,7 +29,7 @@ Release 下载独立 `home_gateway.pyz` 和 `SHA256SUMS`；README 提供了校�
 持久变更确认和 SSH 握手验证；最后握手失败时会自动精确回滚：
 
 ```bash
-./home-gateway setup
+./homeware setup
 ```
 
 希望逐步检查时，再按下面的手动流程执行。
@@ -41,7 +41,7 @@ Release 下载独立 `home_gateway.pyz` 和 `SHA256SUMS`；README 提供了校�
 ![第 1 步](images/step1-probe.png)
 
 看到 `strong-front-end-match` 就可以继续。如果是 `incomplete-match`，说明固件
-不一样——请先提一个 [compatibility issue](https://github.com/VulcanusALex/home-gateway-toolkit/issues/new?template=compatibility_report.md)，不要强行继续。
+不一样——请先提一个 [compatibility issue](https://github.com/VulcanusALex/homeware-toolkit/issues/new?template=compatibility_report.md)，不要强行继续。
 
 ## 第 2 步：按键登录（1 分钟）
 
@@ -59,7 +59,7 @@ NeXXt 没有密码登录，登录就是**同时按住机身侧面两个按钮 3 
 
 > 备用方案：如果你更习惯浏览器——先在浏览器登录路由器页面，然后把 Cookie 里的
 > `sessionID` 值（或整个 HAR 导出文件）交给工具：
-> `./home-gateway session import-cookie <sessionID值或har文件路径>`
+> `./homeware session import-cookie <sessionID值或har文件路径>`
 
 ## 第 3 步：验证注入能力（1 分钟，无持久改动）
 
@@ -85,7 +85,7 @@ SSH 部署将不可用（只读功能仍可用）。
 如果设备曾由 v1.4.0 或更早版本部署过，需要明确迁移一次：
 
 ```bash
-./home-gateway ssh bootstrap --pubkey ~/.ssh/home_gateway_rsa.pub --test --adopt-legacy
+./homeware ssh bootstrap --pubkey ~/.ssh/homeware_rsa.pub --test --adopt-legacy
 ```
 
 没有这个参数时，工具遇到无所有权记录的旧 `dropbear.nx` 或已修改 shell 会拒绝覆盖。
@@ -93,12 +93,12 @@ SSH 部署将不可用（只读功能仍可用）。
 看到 `handshake OK` 就可以连接了：
 
 ```bash
-ssh -i ~/.ssh/home_gateway_rsa -p 2222 \
+ssh -i ~/.ssh/homeware_rsa -p 2222 \
   -o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedKeyTypes=+ssh-rsa \
   root@192.168.1.254
 ```
 
-> 想先看看会执行什么再决定？加 `--dry-run`：`./home-gateway ssh bootstrap --pubkey ... --dry-run`
+> 想先看看会执行什么再决定？加 `--dry-run`：`./homeware ssh bootstrap --pubkey ... --dry-run`
 
 ## 第 5 步：随时体检（5 秒）
 
@@ -116,33 +116,33 @@ ssh -i ~/.ssh/home_gateway_rsa -p 2222 \
 ## 日常用法
 
 ```bash
-./home-gateway ssh run "ip6tables -L zone_wan_forward -nv" --key ~/.ssh/home_gateway_rsa   # 在路由器上执行命令
-./home-gateway fw list --key ~/.ssh/home_gateway_rsa                                       # 看放行规则
-./home-gateway fw ensure --key ~/.ssh/home_gateway_rsa --name Allow-AWG-v6 \
+./homeware ssh run "ip6tables -L zone_wan_forward -nv" --key ~/.ssh/homeware_rsa   # 在路由器上执行命令
+./homeware fw list --key ~/.ssh/homeware_rsa                                       # 看放行规则
+./homeware fw ensure --key ~/.ssh/homeware_rsa --name Allow-AWG-v6 \
   --proto udp --dest-ip 2001:db8::123 --dest-port 51820                      # 幂等精确放行
-./home-gateway fw audit --key ~/.ssh/home_gateway_rsa                                      # UCI/运行态安全审计
-./home-gateway diff -f my-router.json --key ~/.ssh/home_gateway_rsa                        # 与已保存配置对比差异
-./home-gateway apply -f my-router.json --key ~/.ssh/home_gateway_rsa                       # 事务式收敛到该配置
-./home-gateway vpn wireguard --key ~/.ssh/home_gateway_rsa --server-ipv6 2001:db8::123 \
+./homeware fw audit --key ~/.ssh/homeware_rsa                                      # UCI/运行态安全审计
+./homeware diff -f my-router.json --key ~/.ssh/homeware_rsa                        # 与已保存配置对比差异
+./homeware apply -f my-router.json --key ~/.ssh/homeware_rsa                       # 事务式收敛到该配置
+./homeware vpn wireguard --key ~/.ssh/homeware_rsa --server-ipv6 2001:db8::123 \
   --client phone                                                             # WireGuard 密钥+配置+放行一步到位
-./home-gateway dashboard --key ~/.ssh/home_gateway_rsa                                     # WAN/SSH/防火墙实时仪表盘
-./home-gateway inbound observe --key ~/.ssh/home_gateway_rsa --rule Allow-AWG-v6 --wait 30 # 窗口内从外网新建连接
-./home-gateway audit-update --key ~/.ssh/home_gateway_rsa                                  # OTA 或配置变化后审计
-./home-gateway support-bundle --key ~/.ssh/home_gateway_rsa                                # 生成脱敏 issue 附件
-./home-gateway wanwatch --key ~/.ssh/home_gateway_rsa                                      # 监视运营商是否下发了公网 IPv4
+./homeware dashboard --key ~/.ssh/homeware_rsa                                     # WAN/SSH/防火墙实时仪表盘
+./homeware inbound observe --key ~/.ssh/homeware_rsa --rule Allow-AWG-v6 --wait 30 # 窗口内从外网新建连接
+./homeware audit-update --key ~/.ssh/homeware_rsa                                  # OTA 或配置变化后审计
+./homeware support-bundle --key ~/.ssh/homeware_rsa                                # 生成脱敏 issue 附件
+./homeware wanwatch --key ~/.ssh/homeware_rsa                                      # 监视运营商是否下发了公网 IPv4
 ```
 
 小技巧：先固定一次网关证书指纹，之后每条命令都带着用——
-`./home-gateway session fingerprint`，然后 `./home-gateway --tls-fingerprint <指纹> ...`。
+`./homeware session fingerprint`，然后 `./homeware --tls-fingerprint <指纹> ...`。
 
 ## 没有硬件？用模拟器开发或演示
 
 除了真机按键握手，以上功能都能在本地假网关上完整演练：
 
 ```bash
-./home-gateway simulate --time-scale 0.1        # 监听 http://127.0.0.1:<端口>
-./home-gateway --base-url http://127.0.0.1:<端口> probe
-./home-gateway --base-url http://127.0.0.1:<端口> session login   # 虚拟按键
+./homeware simulate --time-scale 0.1        # 监听 http://127.0.0.1:<端口>
+./homeware --base-url http://127.0.0.1:<端口> probe
+./homeware --base-url http://127.0.0.1:<端口> session login   # 虚拟按键
 ```
 
 模拟器实现了同一套 Web API、按键登录握手和注入通道（背后是内存文件系统）。
@@ -151,19 +151,19 @@ ssh -i ~/.ssh/home_gateway_rsa -p 2222 \
 ## 完全还原
 
 ```bash
-./home-gateway ssh teardown    # 只删除本工具拥有的状态/密钥，并恢复记录的 root 原始行
+./homeware ssh teardown    # 只删除本工具拥有的状态/密钥，并恢复记录的 root 原始行
 ```
 
 ## 常见错误速查
 
 | 现象 | 原因与处理 |
 |---|---|
-| 按键后 `authenticated=False` | 按键超时 / 期间打开了浏览器页面；重跑 `./home-gateway session login` |
-| `not authenticated` (exit 3) | 会话过期或被顶掉；重新 `./home-gateway session login` |
-| `UnknownDeviceError` | 固件指纹不识别；先跑 `./home-gateway probe` 核对，确实要强行继续再加 `--force` |
+| 按键后 `authenticated=False` | 按键超时 / 期间打开了浏览器页面；重跑 `./homeware session login` |
+| `not authenticated` (exit 3) | 会话过期或被顶掉；重新 `./homeware session login` |
+| `UnknownDeviceError` | 固件指纹不识别；先跑 `./homeware probe` 核对，确实要强行继续再加 `--force` |
 | bootstrap 后握手被拒 | 密钥不是 RSA；必须 `ssh-keygen -t rsa` |
 | `no matching host key type found` | Mac/新版 OpenSSH 需要加 `-o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedKeyTypes=+ssh-rsa` |
-| `home-gateway ssh run` / `fw` 报主机密钥警告 | v1.6.0 起默认 TOFU；若设备重装过，删除 `~/.home-gateway-toolkit/known_hosts` 里的旧行 |
+| `homeware ssh run` / `fw` 报主机密钥警告 | v1.6.0 起默认 TOFU；若设备重装过，删除 `~/.homeware-toolkit/known_hosts` 里的旧行 |
 | `verify` 显示 NOT CONFIRMED | 该固件已修补注入；只有只读功能可用 |
 | 提示旧修改没有所有权记录 | 存在 v1.4.0 或更早安装；仅在确认由本工具创建时加一次 `--adopt-legacy` |
 | 入站观察结果为 `not-observed` | 结论未知，不等于阻断；从外网新建连接再测，硬件快转或上游过滤都可能导致零增量 |

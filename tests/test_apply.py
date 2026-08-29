@@ -12,10 +12,10 @@ import os
 import tempfile
 import unittest
 
-from home_gateway_toolkit import apply as apply_mod
-from home_gateway_toolkit.apply import (ConfigError, apply_plan, load_config, plan,
+from homeware_toolkit import apply as apply_mod
+from homeware_toolkit.apply import (ConfigError, apply_plan, load_config, plan,
                                  read_ssh_state, run_apply, run_diff)
-from home_gateway_toolkit.firewall import FW
+from homeware_toolkit.firewall import FW
 
 GOOD_UCI = ("dropbear.nx=dropbear\n"
             "dropbear.nx.enable='1'\n"
@@ -126,7 +126,7 @@ class LoadConfigTest(unittest.TestCase):
 
     def test_example_file_is_valid(self):
         here = os.path.dirname(os.path.abspath(__file__))
-        config = load_config(os.path.join(here, "..", "examples", "home_gateway.json"))
+        config = load_config(os.path.join(here, "..", "examples", "homeware.json"))
         self.assertEqual(len(config.firewall_rules), 2)
         self.assertEqual(config.ssh,
                          {"require_key_only": True, "require_lan_only": True})
@@ -216,7 +216,7 @@ class LoadConfigTest(unittest.TestCase):
 
     def test_file_not_found(self):
         with self.assertRaisesRegex(ConfigError, "file not found"):
-            load_config("/nonexistent/home_gateway.json")
+            load_config("/nonexistent/homeware.json")
 
     def test_invalid_json(self):
         handle = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False)

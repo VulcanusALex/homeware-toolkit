@@ -48,11 +48,11 @@
   （`sessionmgr.lua:newSession` 每建一个会话就写入 `uci.fastweb.sessions.@sessions.sessionid`，
   `login.wat` 拿它和调用者比对）。如果有别人（比如浏览器标签页）在你之后建过会话，
   确认就会静默失败。解法：清空本地 Cookie → 请求一次 `/login` 铸造全新会话 →
-  期间不要在浏览器打开路由器页面。`home-gateway session login` 已自动完成这些。
-- **兜底**：浏览器登录一次，然后 `home-gateway session import-cookie <sessionID|capture.har>`。
+  期间不要在浏览器打开路由器页面。`homeware session login` 已自动完成这些。
+- **兜底**：浏览器登录一次，然后 `homeware session import-cookie <sessionID|capture.har>`。
   浏览器不退出登录，会话一直有效。
 - **TLS 指纹固定（v1.6.0+）**：设备证书是自签的，因此不做 CA 验证。先运行一次
-  `home-gateway session fingerprint`，之后加 `--tls-fingerprint <sha256>` 固定证书，
+  `homeware session fingerprint`，之后加 `--tls-fingerprint <sha256>` 固定证书，
   可发现 LAN 上被替换的 TLS 端点。
 
 ## 3. 命令注入（FW_058 已证实）
@@ -82,7 +82,7 @@ host = :::::::;<条件> && sleep${IFS}8
 实测可用：`test -f`、`grep -q`、`wc -c <f> | grep -q '^393'`、
 `md5sum <f> | grep -q <hash>`、`netstat -tln | grep -q :2222`、`test $(id -u) -eq 0`。
 
-## 5. 可靠文件传输（统一 CLI：`home-gateway transfer`）
+## 5. 可靠文件传输（统一 CLI：`homeware transfer`）
 
 1. base64 → URL 安全字母（`+`→`-`，`/`→`_`）。
 2. 切成 ≤48 字符段，每段独立幂等写入 `printf %s <seg> | tee /tmp/nxseg_<tag>_NNN`。
@@ -97,11 +97,11 @@ host = :::::::;<条件> && sleep${IFS}8
 7. v1.6.0 起，`--tag` 和目标路径在发送任何分段前就会经过严格白名单校验——
    目标必须是不含 shell 元字符的绝对路径。
 
-## 6. 持久 SSH（统一 CLI：`home-gateway ssh`）
+## 6. 持久 SSH（统一 CLI：`homeware ssh`）
 
 `bootstrap` 做的事（全部可逆）：
 
-1. 把 root 原始账户行以 0600 权限保存到 `/etc/home-gateway-toolkit/`，再把 shell 从
+1. 把 root 原始账户行以 0600 权限保存到 `/etc/homeware-toolkit/`，再把 shell 从
    `/bin/restricted_shell` 改为 `/bin/ash`；回滚记录重启后仍在。
 2. 端到端校验 **RSA** 公钥，记录本工具拥有的精确一行，再追加到两个授权文件；
    不覆盖任何既有密钥。
@@ -127,8 +127,8 @@ ssh -i <私钥> -p 2222 \
 v1.4.0 或更早安装没有持久所有权记录，需要用 `ssh bootstrap ... --adopt-legacy`
 明确迁移一次；没有这个许可时，工具拒绝猜测和破坏性清理。
 
-**主机密钥验证（v1.6.0+）**：`home-gateway ssh run`、`home-gateway fw` 等所有走 SSH 的命令现在默认
-TOFU（首次信任）dropbear 主机密钥，记录在 `~/.home-gateway-toolkit/known_hosts`
+**主机密钥验证（v1.6.0+）**：`homeware ssh run`、`homeware fw` 等所有走 SSH 的命令现在默认
+TOFU（首次信任）dropbear 主机密钥，记录在 `~/.homeware-toolkit/known_hosts`
 （0700/0600）。密钥变化会直接拒绝连接而不是静默放行；设备确实重装过时，可用
 `ssh run --no-verify-host-key` 显式退回旧行为。
 
@@ -156,10 +156,10 @@ TOFU（首次信任）dropbear 主机密钥，记录在 `~/.home-gateway-toolkit
 
   落地在 `zone_wan_forward`，重启与防火墙重载后均存活。
 
-日常优先使用 `home-gateway fw ensure`：同名规则会幂等更新，修改前备份 firewall UCI，
-重载失败会自动恢复。`home-gateway fw audit` 检查重名、过宽 WAN 放行和未落到运行表的规则。
+日常优先使用 `homeware fw ensure`：同名规则会幂等更新，修改前备份 firewall UCI，
+重载失败会自动恢复。`homeware fw audit` 检查重名、过宽 WAN 放行和未落到运行表的规则。
 
-真实入站测试使用 `home-gateway inbound observe --rule 名称 --key 私钥`，在窗口内从外网
+真实入站测试使用 `homeware inbound observe --rule 名称 --key 私钥`，在窗口内从外网
 **新建**连接。计数增加可证明包已到网关；零增量只表示“未观察到”，不能证明阻断，
 因为客户端没发包、硬件快转和上游过滤都可能导致零计数。WAN 是私网地址本身也不能证明
 CGNAT 阻断，运营商仍可能提供上游 1:1 NAT。
@@ -180,22 +180,22 @@ CGNAT 阻断，运营商仍可能提供上游 1:1 NAT。
 
 - **需要物理接触吗？** 需要——会话来自机身按键（或复用按键建立的会话）。
 - **会变砖吗？** 本指南不涉及 flash 布局、固件镜像、启动 bank、TR-069。teardown 可还原。
-- **固件升级后还有效吗？** 当作无效处理，运行 `home-gateway audit-update --key 私钥`，
+- **固件升级后还有效吗？** 当作无效处理，运行 `homeware audit-update --key 私钥`，
   它会记录固件指纹并检查 SSH 策略、持久回滚状态和防火墙运行态。
 - **运营商的 dropbear.wan？** 别碰，它限制在运营商网段且有 2FA。
 
 ## 10. 恢复与安全
 
-- 首选恢复方式：`./home-gateway ssh teardown`，它依据持久所有权记录精确还原，并保留无关密钥。
+- 首选恢复方式：`./homeware ssh teardown`，它依据持久所有权记录精确还原，并保留无关密钥。
 - `--legacy-force` 只适用于已确认的 v1.4.0 或更早安装；它会使用旧版整文件清理行为。
 - `/tmp` 产物重启自清；立即清理：`rm -f /tmp/nx* /tmp/k*.b64`。
 - 浏览器 HAR 含 `sessionID`，还可能含 VoIP 凭据（`deviceinfo` 会泄露 base64 的 SIP 密码）——用完删除。
-- 提公开 issue 前运行 `home-gateway support-bundle`；它只允许安全固件字段，并自动删除 Cookie、
+- 提公开 issue 前运行 `homeware support-bundle`；它只允许安全固件字段，并自动删除 Cookie、
   凭据、MAC、序列号和原始 IP。上传前仍要人工查看 `report.json`。
 
-## 11. 声明式配置（`home-gateway apply` / `home-gateway diff`）
+## 11. 声明式配置（`homeware apply` / `homeware diff`）
 
-除了一条条执行 `fw ensure`，还可以用一个 JSON 文件描述期望状态（见 `examples/home_gateway.json`）：
+除了一条条执行 `fw ensure`，还可以用一个 JSON 文件描述期望状态（见 `examples/homeware.json`）：
 
 ```json
 {
@@ -210,48 +210,48 @@ CGNAT 阻断，运营商仍可能提供上游 1:1 NAT。
 }
 ```
 
-- `home-gateway diff -f config.json --key K` 是只读的：打印计划（CREATE/UPDATE/DELETE/NOOP
+- `homeware diff -f config.json --key K` 是只读的：打印计划（CREATE/UPDATE/DELETE/NOOP
   及 SSH 策略检查），有待变更时退出码为 2。
-- `home-gateway apply -f config.json --key K` 执行收敛：防火墙规则走与 CLI 相同的幂等、
+- `homeware apply -f config.json --key K` 执行收敛：防火墙规则走与 CLI 相同的幂等、
   备份-回滚 `ensure` 路径；SSH 策略断言（`require_key_only`/`require_lan_only`）
   不满足时在任何修改之前中止。
 - 重复 apply 是空操作。可选 `"prune": true` 只删除“toolkit 形状”的多余规则
   （有名字、`src=wan`、ACCEPT、带 dest_ip+dest_port），其余一概不碰。
 
-## 12. WireGuard 远程访问（`home-gateway vpn wireguard`）
+## 12. WireGuard 远程访问（`homeware vpn wireguard`）
 
 开放针孔最常见的理由就是从外网经 WireGuard 回家。一条命令搞定密钥、配置和网关规则：
 
 ```bash
-home-gateway vpn wireguard --key ~/.ssh/home_gateway_rsa \
+homeware vpn wireguard --key ~/.ssh/homeware_rsa \
   --server-ipv6 2001:db8::123 --client phone --client laptop
 ```
 
 - 密钥在本地用纯 Python 生成（RFC 7748 X25519，通过官方测试向量验证）——两端都不需要
   安装 `wg` 工具。
-- 每个客户端独立密钥对 + 独立 PSK；配置写入 `~/.home-gateway-toolkit/wireguard/`
+- 每个客户端独立密钥对 + 独立 PSK；配置写入 `~/.homeware-toolkit/wireguard/`
   （目录 0700、文件 0600），私钥绝不出现在 stdout 或 `--json` 输出里。
 - WireGuard 服务端运行在 LAN 内一台常开设备上（NAS、树莓派……）——按安全模型，
   网关上不安装任何第三方软件，网关侧只通过 `fw ensure` 加一条幂等 IPv6 UDP 针孔。
 - `--no-pinhole` 只生成配置不动网关；`--force` 覆盖已有配置文件。之后客户端发起握手时跑
-  `home-gateway inbound observe --rule Allow-WG-v6` 即可端到端验证通路。
+  `homeware inbound observe --rule Allow-WG-v6` 即可端到端验证通路。
 
 ## 13. 兼容性数据与报告
 
-固件指纹是数据而不是代码：`home_gateway_toolkit/compat.json` 列出已知的板型/型号/固件组合，
+固件指纹是数据而不是代码：`homeware_toolkit/compat.json` 列出已知的板型/型号/固件组合，
 随包发布。注入守卫对未知板型直接拒绝，对板型匹配但固件未收录的设备给出警告
 （`untested`），`--force` 可覆盖两者。公开矩阵维护在 `COMPATIBILITY.md`。
-如果你的固件不在列表里，运行 `home-gateway probe --report`，把生成的 Markdown 直接粘贴到
+如果你的固件不在列表里，运行 `homeware probe --report`，把生成的 Markdown 直接粘贴到
 compatibility issue 即可——内容只有探测数据，无需脱敏。
 
-## 14. 无硬件开发（`home-gateway simulate`）
+## 14. 无硬件开发（`homeware simulate`）
 
-`home-gateway simulate` 在 `127.0.0.1` 上启动一个假网关：实现了探测指纹用的静态前端资源、
+`homeware simulate` 在 `127.0.0.1` 上启动一个假网关：实现了探测指纹用的静态前端资源、
 按键登录握手（虚拟 `press_buttons`）、会话 TTL，以及由内存文件系统和 shell 子集解释器
 支撑的注入通道（`tee`、`grep`、`base64`、`md5sum`、可调时间缩放的 `sleep` 等）。
 
 ```bash
-home-gateway simulate --time-scale 0.1
+homeware simulate --time-scale 0.1
 nexxt --base-url http://127.0.0.1:<端口> probe
 nexxt --base-url http://127.0.0.1:<端口> session login
 ```

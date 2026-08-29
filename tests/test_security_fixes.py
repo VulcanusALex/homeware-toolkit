@@ -14,9 +14,9 @@ import unittest
 import urllib.request
 from unittest import mock
 
-from home_gateway_toolkit import client as client_mod
-from home_gateway_toolkit import ssh as ssh_mod
-from home_gateway_toolkit import transfer
+from homeware_toolkit import client as client_mod
+from homeware_toolkit import ssh as ssh_mod
+from homeware_toolkit import transfer
 
 
 class _Proc:
@@ -78,7 +78,7 @@ class TagValidationTest(unittest.TestCase):
 
 class TargetValidationTest(unittest.TestCase):
     def test_valid_targets(self):
-        for target in ("/tmp/x", "/etc/home-gateway-toolkit/authorized_key",
+        for target in ("/tmp/x", "/etc/homeware-toolkit/authorized_key",
                        "/www/backup-v1.2_bin", "/" + "a" * 199):
             self.assertEqual(transfer._validate_target(target), target)
 
@@ -120,7 +120,7 @@ class TargetValidationTest(unittest.TestCase):
 class KnownHostsPathTest(unittest.TestCase):
     def test_creates_dir_0700_and_file_0600(self):
         with tempfile.TemporaryDirectory() as tmp:
-            kh_dir = os.path.join(tmp, ".home-gateway-toolkit")
+            kh_dir = os.path.join(tmp, ".homeware-toolkit")
             kh_file = os.path.join(kh_dir, "known_hosts")
             with mock.patch.object(ssh_mod, "KNOWN_HOSTS_DIR", kh_dir), \
                     mock.patch.object(ssh_mod, "KNOWN_HOSTS", kh_file):
@@ -140,7 +140,7 @@ class KnownHostsPathTest(unittest.TestCase):
 
     def test_fixes_loose_permissions(self):
         with tempfile.TemporaryDirectory() as tmp:
-            kh_dir = os.path.join(tmp, ".home-gateway-toolkit")
+            kh_dir = os.path.join(tmp, ".homeware-toolkit")
             kh_file = os.path.join(kh_dir, "known_hosts")
             os.makedirs(kh_dir, mode=0o755)
             with open(kh_file, "w", encoding="ascii") as fh:
@@ -157,7 +157,7 @@ class TofuSshRunTest(unittest.TestCase):
     def _run(self, **kwargs):
         with mock.patch.object(
                 ssh_mod, "known_hosts_path",
-                return_value="/home/u/.home-gateway-toolkit/known_hosts"
+                return_value="/home/u/.homeware-toolkit/known_hosts"
                 ) as mock_kh, \
                 mock.patch.object(ssh_mod.subprocess, "run",
                                   return_value=_Proc(0, "", "")) as mock_run:
@@ -168,7 +168,7 @@ class TofuSshRunTest(unittest.TestCase):
         cmd, mock_kh = self._run()
         self.assertIn("StrictHostKeyChecking=accept-new", cmd)
         self.assertIn(
-            "UserKnownHostsFile=/home/u/.home-gateway-toolkit/known_hosts", cmd)
+            "UserKnownHostsFile=/home/u/.homeware-toolkit/known_hosts", cmd)
         self.assertNotIn("StrictHostKeyChecking=no", cmd)
         self.assertNotIn("UserKnownHostsFile=/dev/null", cmd)
         mock_kh.assert_called_once_with()

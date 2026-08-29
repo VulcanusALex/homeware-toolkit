@@ -16,12 +16,12 @@ from unittest import mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-from home_gateway_toolkit import inject as inject_mod  # noqa: E402
-from home_gateway_toolkit import probe, transfer, verify as verify_mod  # noqa: E402
-from home_gateway_toolkit.client import GatewayClient  # noqa: E402
-from home_gateway_toolkit.driver import detect_from_sysinfo  # noqa: E402
-from home_gateway_toolkit.inject import Injector, UnknownDeviceError  # noqa: E402
-from home_gateway_toolkit.simulator import (  # noqa: E402
+from homeware_toolkit import inject as inject_mod  # noqa: E402
+from homeware_toolkit import probe, transfer, verify as verify_mod  # noqa: E402
+from homeware_toolkit.client import GatewayClient  # noqa: E402
+from homeware_toolkit.driver import detect_from_sysinfo  # noqa: E402
+from homeware_toolkit.inject import Injector, UnknownDeviceError  # noqa: E402
+from homeware_toolkit.simulator import (  # noqa: E402
     FakeGateway, GENERIC_HOMEWARE_PROFILE, VirtualShell)
 
 SILENT = lambda *args: None  # noqa: E731

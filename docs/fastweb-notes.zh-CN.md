@@ -38,7 +38,7 @@
 
 **可行出路：**
 
-1. 运行 `home-gateway inbound observe --rule 名称 --key 私钥`，并在窗口内从外网新建连接。
+1. 运行 `homeware inbound observe --rule 名称 --key 私钥`，并在窗口内从外网新建连接。
    正增量证明包到达网关；零增量只是不确定，不能直接写成“被堵”。
 2. 请 Fastweb 核对静态公网 IP / 上游 1:1 NAT provisioning 与入站过滤。只要映射静态且
    正确转发，公网地址不一定需要直接出现在 WAN 接口。

@@ -2,8 +2,9 @@
 
 ## Scope and intended use
 
-home-gateway-toolkit is an **owner-side** toolkit. It exists so that owners of a
-Fastweb NeXXt One gateway can inspect and control hardware they own, on their
+homeware-toolkit is an **owner-side** toolkit. It exists so that owners of
+Technicolor/Vantiva Homeware gateways (Fastweb NeXXt One, Vodafone UK VCNT-I
+and similar) can inspect and control hardware they own, on their
 own LAN. Every privileged action requires an authenticated web session, which
 in turn requires **physical access** (pressing the device buttons) or a
 session created that way. It is not a remote exploit and provides no way to
@@ -56,7 +57,7 @@ publication, following coordinated disclosure practices.
   with password and root-password auth disabled. The ISP's own
   `dropbear.wan` management instance is never modified.
 - Bootstrap appends its recorded key and preserves unrelated authorized keys.
-  State under `/etc/home-gateway-toolkit/` is mode 0700/0600 and survives reboot.
+  State under `/etc/homeware-toolkit/` is mode 0700/0600 and survives reboot.
 - `teardown` removes only toolkit-owned state and restores the exact original
   root account line. Unowned legacy changes are refused unless explicitly
   adopted.
@@ -65,14 +66,14 @@ publication, following coordinated disclosure practices.
 - `support-bundle` uses a strict sysinfo allowlist and redacts credentials,
   sessions, MACs, serials and raw IP addresses; still review it before sharing.
 - GitHub Releases publish `SHA256SUMS` beside the wheel, source archive and
-  standalone `home_gateway.pyz`. Verify the selected artifact before running it; the
+  standalone `homeware.pyz`. Verify the selected artifact before running it; the
   README includes a command that checks only the downloaded zipapp entry.
 - Since v1.6.0, SSH-based commands verify the dropbear host key
-  trust-on-first-use against `~/.home-gateway-toolkit/known_hosts` (0700/0600).
+  trust-on-first-use against `~/.homeware-toolkit/known_hosts` (0700/0600).
   A changed key fails the connection; delete the stale line only when you
   reinstalled the device yourself.
 - The gateway HTTPS certificate is self-signed, so CA validation is off.
-  Pin it with `home-gateway session fingerprint` + `--tls-fingerprint <sha256>` to
+  Pin it with `homeware session fingerprint` + `--tls-fingerprint <sha256>` to
   detect a different TLS endpoint answering on the LAN.
 - `transfer` validates `--tag` and the target path against strict character
   allowlists before any command is sent; `vpn wireguard` writes keys with

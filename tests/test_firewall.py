@@ -3,8 +3,8 @@
 import unittest
 from unittest import mock
 
-from home_gateway_toolkit import firewall
-from home_gateway_toolkit.firewall import FW, NAME_RE
+from homeware_toolkit import firewall
+from homeware_toolkit.firewall import FW, NAME_RE
 
 
 class _Proc:

@@ -18,10 +18,10 @@ paste the exact command and full output (sanitize cookies/keys/IPs)
 
 **Environment**
 - OS and Python version (`python3 --version`):
-- Gateway model/firmware (`./home-gateway session dump` sysinfo, if available):
-- `./home-gateway probe` compatibility_signal:
+- Gateway model/firmware (`./homeware session dump` sysinfo, if available):
+- `./homeware probe` compatibility_signal:
 
-If possible, attach the ZIP produced by `./home-gateway support-bundle` after
+If possible, attach the ZIP produced by `./homeware support-bundle` after
 reviewing `report.json`.
 
 **Checklist**

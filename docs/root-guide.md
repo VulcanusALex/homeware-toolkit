@@ -64,13 +64,13 @@ Note: `statusinfo` returns 404 on this firmware.
   caller's session). If anyone (e.g. a browser tab) created a session after
   yours, the confirm silently does nothing. Fix: clear the local cookie jar,
   request `/login` once to mint a fresh session, and don't open the router
-  page in a browser during login. `home-gateway session login` does this
+  page in a browser during login. `homeware session login` does this
   automatically.
 - **Fallback:** log in once in a real browser, then
-  `home-gateway session import-cookie <sessionID|capture.har>`. The session stays
+  `homeware session import-cookie <sessionID|capture.har>`. The session stays
   valid until the browser logs out.
 - **TLS pinning (v1.6.0+):** the device certificate is self-signed, so CA
-  verification is off. Run `home-gateway session fingerprint` once and pass
+  verification is off. Run `homeware session fingerprint` once and pass
   `--tls-fingerprint <sha256>` on later calls to pin the certificate and
   detect a different TLS endpoint on the LAN.
 
@@ -109,7 +109,7 @@ Measure the baseline first with `host=127.0.0.1`. Proven patterns:
 `test -f`, `grep -q`, `wc -c <f> | grep -q '^393'`, `md5sum <f> | grep -q <hash>`,
 `netstat -tln | grep -q :2222`, `test $(id -u) -eq 0`.
 
-## 5. Reliable file transfer (unified CLI: `home-gateway transfer`)
+## 5. Reliable file transfer (unified CLI: `homeware transfer`)
 
 1. base64 → URL-safe alphabet (`+`→`-`, `/`→`_`).
 2. Split into ≤48-char segments; each goes to its own idempotent file
@@ -129,11 +129,11 @@ Measure the baseline first with `host=127.0.0.1`. Proven patterns:
    character allowlists before any segment is sent — the target must be an
    absolute path without shell metacharacters.
 
-## 6. Persistent SSH (unified CLI: `home-gateway ssh`)
+## 6. Persistent SSH (unified CLI: `homeware ssh`)
 
 What `bootstrap` does (all reversible):
 
-1. Stores the original root account line under `/etc/home-gateway-toolkit/` with
+1. Stores the original root account line under `/etc/homeware-toolkit/` with
    mode 0600, then patches the shell from `/bin/restricted_shell` to
    `/bin/ash`. The rollback record survives reboot.
 2. Transfers your **RSA** public key with end-to-end verification, records the
@@ -166,9 +166,9 @@ installation created by v1.4.0 or older has no ownership record; migrate it
 once with `ssh bootstrap ... --adopt-legacy`. Without that explicit consent,
 the toolkit refuses destructive cleanup or adoption.
 
-**Host-key verification (v1.6.0+):** `home-gateway ssh run`, `home-gateway fw` and every
+**Host-key verification (v1.6.0+):** `homeware ssh run`, `homeware fw` and every
 other SSH-based command now trust-on-first-use the dropbear host key into
-`~/.home-gateway-toolkit/known_hosts` (0700/0600). A changed key fails the
+`~/.homeware-toolkit/known_hosts` (0700/0600). A changed key fails the
 connection instead of being silently accepted; `--no-verify-host-key` on
 `ssh run` restores the old behaviour when you deliberately reinstalled.
 
@@ -197,12 +197,12 @@ connection instead of being silently accepted; `--no-verify-host-key` on
 
   It lands in `zone_wan_forward` and survives reboots and firewall reloads.
 
-Prefer `home-gateway fw ensure` to raw UCI: it creates or updates one named rule
+Prefer `homeware fw ensure` to raw UCI: it creates or updates one named rule
 idempotently, backs up the firewall package, reloads it, and restores the
-backup if the operation fails. `home-gateway fw audit` reports duplicate names,
+backup if the operation fails. `homeware fw audit` reports duplicate names,
 broad WAN accepts, and enabled UCI rules absent from the running tables.
 
-To test real inbound reachability, run `home-gateway inbound observe --rule NAME
+To test real inbound reachability, run `homeware inbound observe --rule NAME
 --key KEY` and start a **new** external connection during the window. A
 positive packet delta proves arrival at the gateway. Zero is deliberately
 reported as inconclusive: client inactivity, hardware offload and upstream
@@ -227,7 +227,7 @@ CGNAT blocking; an ISP may provide upstream 1:1 NAT.
   device buttons (or reusing a session created that way).
 - **Can this brick the gateway?** The described steps don't touch flash layout,
   firmware images, boot banks or TR-069. `teardown` restores the shell.
-- **Does it survive a firmware update?** Assume no. Run `home-gateway audit-update
+- **Does it survive a firmware update?** Assume no. Run `homeware audit-update
   --key KEY`; it records the firmware fingerprint and checks SSH policy,
   persistent rollback state and firewall runtime.
 - **ISP's own dropbear (`dropbear.wan`)?** Leave it alone; it's restricted to
@@ -235,21 +235,21 @@ CGNAT blocking; an ISP may provide upstream 1:1 NAT.
 
 ## 10. Recovery & safety
 
-- Preferred recovery: `./home-gateway ssh teardown`; it uses the persistent ownership
+- Preferred recovery: `./homeware ssh teardown`; it uses the persistent ownership
   record and preserves unrelated keys and account changes.
 - Do not use `--legacy-force` unless you have confirmed a <=1.4.0 toolkit
   installation and accept its old whole-file key cleanup behavior.
 - `/tmp` artifacts vanish on reboot; to wipe now: `rm -f /tmp/nx* /tmp/k*.b64`.
 - Browser HAR files contain the `sessionID` and possibly VoIP credentials
   (`deviceinfo` leaks a base64 SIP password) — delete them after use.
-- Before opening a public issue, create `home-gateway support-bundle`; it only admits
+- Before opening a public issue, create `homeware support-bundle`; it only admits
   safe firmware fields and redacts cookies, credentials, MACs, serials and raw
   IP addresses. Review the report before uploading it.
 
-## 11. Declarative configuration (`home-gateway apply` / `home-gateway diff`)
+## 11. Declarative configuration (`homeware apply` / `homeware diff`)
 
 Instead of issuing `fw ensure` calls one by one, describe the desired state in
-a single JSON file (see `examples/home_gateway.json`):
+a single JSON file (see `examples/homeware.json`):
 
 ```json
 {
@@ -264,10 +264,10 @@ a single JSON file (see `examples/home_gateway.json`):
 }
 ```
 
-- `home-gateway diff -f config.json --key K` is read-only: it prints the plan
+- `homeware diff -f config.json --key K` is read-only: it prints the plan
   (CREATE/UPDATE/DELETE/NOOP plus SSH policy checks) and exits 2 when changes
   are pending.
-- `home-gateway apply -f config.json --key K` converges: firewall rules go through
+- `homeware apply -f config.json --key K` converges: firewall rules go through
   the same idempotent, backup-and-rollback `ensure` path as the CLI; a failed
   SSH policy assertion (`require_key_only`/`require_lan_only`) aborts before
   any change.
@@ -275,56 +275,56 @@ a single JSON file (see `examples/home_gateway.json`):
   toolkit-shaped extra rules (named, `src=wan`, ACCEPT, dest_ip+dest_port);
   anything else is never touched.
 
-## 12. WireGuard remote access (`home-gateway vpn wireguard`)
+## 12. WireGuard remote access (`homeware vpn wireguard`)
 
 The most common reason to open a pinhole is reaching home over WireGuard.
 One command covers keys, configs and the gateway rule:
 
 ```bash
-home-gateway vpn wireguard --key ~/.ssh/home_gateway_rsa \
+homeware vpn wireguard --key ~/.ssh/homeware_rsa \
   --server-ipv6 2001:db8::123 --client phone --client laptop
 ```
 
 - Keys are generated locally in pure Python (RFC 7748 X25519, validated
   against the official test vectors) — no `wg` binary needed on either side.
 - Each client gets its own keypair and PSK; configs land in
-  `~/.home-gateway-toolkit/wireguard/` (dir 0700, files 0600) and private keys
+  `~/.homeware-toolkit/wireguard/` (dir 0700, files 0600) and private keys
   never appear in stdout or `--json` output.
 - The WireGuard server itself runs on an always-on LAN device (NAS, Pi, …) —
   no third-party software is installed on the gateway, per the safety model.
   The gateway only gets an idempotent IPv6 UDP pinhole via `fw ensure`.
 - Use `--no-pinhole` to only render configs, and `--force` to overwrite
-  existing config files. Afterwards, `home-gateway inbound observe --rule Allow-WG-v6`
+  existing config files. Afterwards, `homeware inbound observe --rule Allow-WG-v6`
   while a client handshakes proves the path end to end.
 
 ## 13. Compatibility data & reports
 
-Firmware fingerprints are data, not code: `home_gateway_toolkit/compat.json` lists
+Firmware fingerprints are data, not code: `homeware_toolkit/compat.json` lists
 known board/model/firmware combinations and is shipped inside the package.
 The injection guard refuses unknown boards, warns on board-matched but
 unlisted firmware (`untested`), and `--force` overrides both.
 `COMPATIBILITY.md` tracks the public matrix. When your firmware is not listed,
-run `home-gateway probe --report` and paste the generated Markdown into a
+run `homeware probe --report` and paste the generated Markdown into a
 compatibility issue — no redaction needed, it contains only probe data.
 
 As of schema 2, each fingerprint may also declare a `driver` name and a
 `capabilities` object.  The driver selects the device-family implementation
-under `home_gateway_toolkit/drivers/`; capabilities override the NeXXt One defaults
+under `homeware_toolkit/drivers/`; capabilities override the NeXXt One defaults
 for constants such as the injection payload prefix, firewall backend, SSH
 service name, and WAN interface names.  This lets new devices be supported by
 editing `compat.json` and adding a small driver module, without rewriting the
 CLI or business logic.
 
-## 14. Hardware-free development (`home-gateway simulate`)
+## 14. Hardware-free development (`homeware simulate`)
 
-`home-gateway simulate` starts a fake gateway on `127.0.0.1` that implements the
+`homeware simulate` starts a fake gateway on `127.0.0.1` that implements the
 static front-end assets probed for fingerprints, the button-login handshake
 (virtual `press_buttons`), session TTLs, and the ping-injection channel backed
 by an in-memory filesystem with an interpreted shell subset (`tee`, `grep`,
 `base64`, `md5sum`, `sleep` with a configurable time scale, …).
 
 ```bash
-home-gateway simulate --time-scale 0.1
+homeware simulate --time-scale 0.1
 nexxt --base-url http://127.0.0.1:<port> probe
 nexxt --base-url http://127.0.0.1:<port> session login
 ```

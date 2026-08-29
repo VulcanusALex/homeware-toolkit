@@ -3,10 +3,10 @@
 
 This script produces:
 
-- ``dist/home_gateway.pyz`` — the dependency-free zipapp (existing release artifact).
-- ``dist/home-gateway-toolkit-<version>-macos.app.zip`` — macOS .app bundle
+- ``dist/homeware.pyz`` — the dependency-free zipapp (existing release artifact).
+- ``dist/homeware-toolkit-<version>-macos.app.zip`` — macOS .app bundle
   (when run on macOS with PyInstaller installed).
-- ``dist/home-gateway-toolkit-<version>-win64.spec`` — PyInstaller spec for the
+- ``dist/homeware-toolkit-<version>-win64.spec`` — PyInstaller spec for the
   Windows .exe, meant to be built on a Windows runner or CI.
 
 Usage:
@@ -19,7 +19,7 @@ Requirements for macOS app bundling:
 
 The Windows spec can be built locally on Windows with:
 
-    pyinstaller dist/home-gateway-toolkit-X.Y.Z-win64.spec
+    pyinstaller dist/homeware-toolkit-X.Y.Z-win64.spec
 """
 
 from __future__ import annotations
@@ -46,7 +46,7 @@ def _run(cmd: list[str], **kwargs) -> None:
 
 def get_version() -> str:
     """Read version from the package without importing side effects."""
-    init = (PROJECT_ROOT / "home_gateway_toolkit" / "__init__.py").read_text()
+    init = (PROJECT_ROOT / "homeware_toolkit" / "__init__.py").read_text()
     for line in init.splitlines():
         if line.startswith("__version__"):
             return line.split("=", 1)[1].strip().strip('"\'')
@@ -56,14 +56,14 @@ def get_version() -> str:
 def build_pyz(version: str) -> Path:
     """Build the standalone zipapp."""
     DIST_DIR.mkdir(exist_ok=True)
-    pyz = DIST_DIR / "home_gateway.pyz"
+    pyz = DIST_DIR / "homeware.pyz"
     # Build into a temporary directory so we can include package data.
     if BUILD_DIR.exists():
         shutil.rmtree(BUILD_DIR)
-    build_pkg = BUILD_DIR / "home_gateway_toolkit"
+    build_pkg = BUILD_DIR / "homeware_toolkit"
     build_pkg.mkdir(parents=True)
 
-    src_pkg = PROJECT_ROOT / "home_gateway_toolkit"
+    src_pkg = PROJECT_ROOT / "homeware_toolkit"
     for item in src_pkg.iterdir():
         if item.is_file():
             if item.suffix == ".pyc":
@@ -76,7 +76,7 @@ def build_pyz(version: str) -> Path:
     # Entry point shim.
     main_py = BUILD_DIR / "__main__.py"
     main_py.write_text(
-        "from home_gateway_toolkit.cli import main\n"
+        "from homeware_toolkit.cli import main\n"
         "import sys\n"
         "sys.exit(main())\n"
     )
@@ -99,20 +99,20 @@ def build_macos_app(version: str, pyz: Path) -> Path | None:
         print("        install with: pip install pyinstaller")
         return None
 
-    app_name = "home-gateway"
+    app_name = "homeware"
     spec_dir = BUILD_DIR / "pyinstaller"
     spec_dir.mkdir(parents=True, exist_ok=True)
 
     # PyInstaller needs a real Python script entry point, not a .pyz.
-    entry = spec_dir / "home_gateway_entry.py"
+    entry = spec_dir / "homeware_entry.py"
     entry.write_text(
         "# Auto-generated entry point for PyInstaller\n"
-        "from home_gateway_toolkit.cli import main\n"
+        "from homeware_toolkit.cli import main\n"
         "import sys\n"
         "sys.exit(main())\n"
     )
 
-    dist_app = DIST_DIR / f"home-gateway-toolkit-{version}-macos.app"
+    dist_app = DIST_DIR / f"homeware-toolkit-{version}-macos.app"
     if dist_app.exists():
         shutil.rmtree(dist_app)
 
@@ -122,8 +122,8 @@ def build_macos_app(version: str, pyz: Path) -> Path | None:
         "--name", app_name,
         "--onedir",          # .app bundles must be directories on macOS
         "--windowed",
-        "--add-data", f"{PROJECT_ROOT / 'home_gateway_toolkit' / 'compat.json'}{data_sep}home_gateway_toolkit",
-        "--add-data", f"{PROJECT_ROOT / 'home_gateway_toolkit' / 'drivers'}{data_sep}home_gateway_toolkit/drivers",
+        "--add-data", f"{PROJECT_ROOT / 'homeware_toolkit' / 'compat.json'}{data_sep}homeware_toolkit",
+        "--add-data", f"{PROJECT_ROOT / 'homeware_toolkit' / 'drivers'}{data_sep}homeware_toolkit/drivers",
         "--distpath", str(DIST_DIR),
         "--workpath", str(spec_dir / "work"),
         "--specpath", str(spec_dir),
@@ -138,7 +138,7 @@ def build_macos_app(version: str, pyz: Path) -> Path | None:
         return None
 
     built_app.rename(dist_app)
-    zip_path = DIST_DIR / f"home-gateway-toolkit-{version}-macos.app.zip"
+    zip_path = DIST_DIR / f"homeware-toolkit-{version}-macos.app.zip"
     if zip_path.exists():
         zip_path.unlink()
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -150,19 +150,19 @@ def build_macos_app(version: str, pyz: Path) -> Path | None:
 
 def write_windows_spec(version: str) -> Path:
     """Generate a PyInstaller spec file for Windows builds."""
-    spec = DIST_DIR / f"home-gateway-toolkit-{version}-win64.spec"
-    entry = BUILD_DIR / "pyinstaller" / "home_gateway_entry.py"
+    spec = DIST_DIR / f"homeware-toolkit-{version}-win64.spec"
+    entry = BUILD_DIR / "pyinstaller" / "homeware_entry.py"
     entry.parent.mkdir(parents=True, exist_ok=True)
     entry.write_text(
         "# Auto-generated entry point for PyInstaller\n"
-        "from home_gateway_toolkit.cli import main\n"
+        "from homeware_toolkit.cli import main\n"
         "import sys\n"
         "sys.exit(main())\n"
     )
     # Use paths relative to the project root so the spec can run on any machine.
     rel_entry = entry.relative_to(PROJECT_ROOT).as_posix()
     spec_content = f'''# -*- mode: python ; coding: utf-8 -*-
-# PyInstaller spec for home-gateway-toolkit v{version}
+# PyInstaller spec for homeware-toolkit v{version}
 # Build on Windows from the project root with: pyinstaller "{spec.name}"
 
 a = Analysis(
@@ -170,8 +170,8 @@ a = Analysis(
     pathex=[r"."],
     binaries=[],
     datas=[
-        (r"home_gateway_toolkit/compat.json", "home_gateway_toolkit"),
-        (r"home_gateway_toolkit/drivers", "home_gateway_toolkit/drivers"),
+        (r"homeware_toolkit/compat.json", "homeware_toolkit"),
+        (r"homeware_toolkit/drivers", "homeware_toolkit/drivers"),
     ],
     hiddenimports=[],
     hookspath=[],
@@ -188,7 +188,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='home-gateway',
+    name='homeware',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -210,7 +210,7 @@ exe = EXE(
 
 def main() -> int:
     version = get_version()
-    print(f"[build] home-gateway-toolkit {version}")
+    print(f"[build] homeware-toolkit {version}")
 
     DIST_DIR.mkdir(exist_ok=True)
     pyz = build_pyz(version)

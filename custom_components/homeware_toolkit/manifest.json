@@ -1,0 +1,11 @@
+{
+  "domain": "homeware_toolkit",
+  "name": "homeware-toolkit",
+  "codeowners": ["@VulcanusALex"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/VulcanusALex/homeware-toolkit",
+  "iot_class": "local_polling",
+  "requirements": ["homeware-toolkit>=1.6.0"],
+  "version": "1.6.0"
+}

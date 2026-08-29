@@ -16,36 +16,36 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Compile everything
-        run: python -m py_compile home_gateway_toolkit/*.py home_gateway_toolkit/drivers/*.py tools/*.py home-gateway
+        run: python -m py_compile homeware_toolkit/*.py homeware_toolkit/drivers/*.py tools/*.py homeware
       - name: Unit tests
         run: python -m unittest discover -s tests -v
       - name: CLI smoke tests
         run: |
-          ./home-gateway --version
-          ./home-gateway --help >/dev/null
-          ./home-gateway probe --help >/dev/null
-          ./home-gateway setup --help >/dev/null
-          ./home-gateway doctor --help >/dev/null
-          ./home-gateway session --help >/dev/null
-          ./home-gateway ssh --help >/dev/null
-          ./home-gateway ssh run --help >/dev/null
-          ./home-gateway fw --help >/dev/null
-          ./home-gateway inbound observe --help >/dev/null
-          ./home-gateway support-bundle --help >/dev/null
-          ./home-gateway audit-update --help >/dev/null
-          ./home-gateway wanwatch --help >/dev/null
-          python tools/home_gateway_probe.py --help >/dev/null
-          python tools/home_gateway_ssh.py --help >/dev/null
+          ./homeware --version
+          ./homeware --help >/dev/null
+          ./homeware probe --help >/dev/null
+          ./homeware setup --help >/dev/null
+          ./homeware doctor --help >/dev/null
+          ./homeware session --help >/dev/null
+          ./homeware ssh --help >/dev/null
+          ./homeware ssh run --help >/dev/null
+          ./homeware fw --help >/dev/null
+          ./homeware inbound observe --help >/dev/null
+          ./homeware support-bundle --help >/dev/null
+          ./homeware audit-update --help >/dev/null
+          ./homeware wanwatch --help >/dev/null
+          python tools/homeware_probe.py --help >/dev/null
+          python tools/homeware_ssh.py --help >/dev/null
       - name: Import graph check
         run: |
           python -c "
-          import home_gateway_toolkit.cli, home_gateway_toolkit.doctor, home_gateway_toolkit.firewall
-          import home_gateway_toolkit.audit, home_gateway_toolkit.egress, home_gateway_toolkit.inbound
-          import home_gateway_toolkit.setup
-          import home_gateway_toolkit.support
-          import home_gateway_toolkit.inject, home_gateway_toolkit.probe, home_gateway_toolkit.ssh
-          import home_gateway_toolkit.transfer, home_gateway_toolkit.verify, home_gateway_toolkit.wanwatch
-          import home_gateway_toolkit.drivers, home_gateway_toolkit.drivers.nexxt
-          import home_gateway_toolkit.drivers.openwrt, home_gateway_toolkit.drivers.vcnt_i
-          import home_gateway_toolkit.simulator, home_gateway_toolkit.wizard, home_gateway_toolkit.tui
+          import homeware_toolkit.cli, homeware_toolkit.doctor, homeware_toolkit.firewall
+          import homeware_toolkit.audit, homeware_toolkit.egress, homeware_toolkit.inbound
+          import homeware_toolkit.setup
+          import homeware_toolkit.support
+          import homeware_toolkit.inject, homeware_toolkit.probe, homeware_toolkit.ssh
+          import homeware_toolkit.transfer, homeware_toolkit.verify, homeware_toolkit.wanwatch
+          import homeware_toolkit.drivers, homeware_toolkit.drivers.nexxt
+          import homeware_toolkit.drivers.openwrt, homeware_toolkit.drivers.vcnt_i
+          import homeware_toolkit.simulator, homeware_toolkit.wizard, homeware_toolkit.tui
           print('imports OK')"

@@ -13,7 +13,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-from home_gateway_toolkit import compat, inject as inject_mod, tui
+from homeware_toolkit import compat, inject as inject_mod, tui
 
 
 class MockClient:

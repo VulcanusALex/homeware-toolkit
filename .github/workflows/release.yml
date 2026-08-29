@@ -19,20 +19,20 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
-          VERSION="$(python -c 'from home_gateway_toolkit import __version__; print(__version__)')"
+          VERSION="$(python -c 'from homeware_toolkit import __version__; print(__version__)')"
           test "v${VERSION}" = "${RELEASE_TAG}"
       - name: Build wheel and source distribution
         run: pip install build twine && python -m build && twine check dist/*
       - name: Build standalone zipapp and checksums
         run: |
-          mkdir -p build/zipapp/home_gateway_toolkit
-          cp home_gateway_toolkit/*.py build/zipapp/home_gateway_toolkit/
-          cp home_gateway_toolkit/compat.json build/zipapp/home_gateway_toolkit/
-          cp -r home_gateway_toolkit/drivers build/zipapp/home_gateway_toolkit/
-          printf '%s\n' 'from home_gateway_toolkit.cli import main' 'raise SystemExit(main())' > build/zipapp/__main__.py
+          mkdir -p build/zipapp/homeware_toolkit
+          cp homeware_toolkit/*.py build/zipapp/homeware_toolkit/
+          cp homeware_toolkit/compat.json build/zipapp/homeware_toolkit/
+          cp -r homeware_toolkit/drivers build/zipapp/homeware_toolkit/
+          printf '%s\n' 'from homeware_toolkit.cli import main' 'raise SystemExit(main())' > build/zipapp/__main__.py
           mkdir -p release-assets
-          python -m zipapp build/zipapp -p '/usr/bin/env python3' -o release-assets/home_gateway.pyz
-          chmod +x release-assets/home_gateway.pyz
+          python -m zipapp build/zipapp -p '/usr/bin/env python3' -o release-assets/homeware.pyz
+          chmod +x release-assets/homeware.pyz
           cp dist/* release-assets/
           cd release-assets
           sha256sum * > SHA256SUMS

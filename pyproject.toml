@@ -3,9 +3,9 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "nexxt-one-toolkit"
+name = "home-gateway-toolkit"
 version = "1.6.0"
-description = "Owner-side toolkit for the Fastweb NeXXt One gateway: guided setup, safe key-only SSH, firewall and inbound diagnostics, upgrade audits"
+description = "Owner-side toolkit for residential gateways: guided setup, safe key-only SSH, firewall and inbound diagnostics, upgrade audits"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.9"
@@ -22,15 +22,15 @@ classifiers = [
 dependencies = []
 
 [project.urls]
-Homepage = "https://github.com/VulcanusALex/nexxt-one-toolkit"
-Documentation = "https://github.com/VulcanusALex/nexxt-one-toolkit/tree/main/docs"
-Issues = "https://github.com/VulcanusALex/nexxt-one-toolkit/issues"
+Homepage = "https://github.com/VulcanusALex/home-gateway-toolkit"
+Documentation = "https://github.com/VulcanusALex/home-gateway-toolkit/tree/main/docs"
+Issues = "https://github.com/VulcanusALex/home-gateway-toolkit/issues"
 
 [project.scripts]
-nexxt = "nexxt_toolkit.cli:main"
+home-gateway = "home_gateway_toolkit.cli:main"
 
 [tool.setuptools]
-packages = ["nexxt_toolkit"]
+packages = ["home_gateway_toolkit"]
 
 [tool.setuptools.package-data]
-nexxt_toolkit = ["compat.json"]
+home_gateway_toolkit = ["compat.json"]

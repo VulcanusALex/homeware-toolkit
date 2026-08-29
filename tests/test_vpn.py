@@ -9,7 +9,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-from nexxt_toolkit import vpn
+from home_gateway_toolkit import vpn
 
 
 def _h(hexstr: str) -> bytes:
@@ -298,7 +298,7 @@ class BootstrapWireguard(unittest.TestCase):
             None, out_dir, server_ipv6="2001:b07:abc::5", clients=["phone"],
             log=lambda _m: None)
         self.assertIsNone(result["rule"])
-        self.assertTrue(any("nexxt fw ensure" in step
+        self.assertTrue(any("home-gateway fw ensure" in step
                             for step in result["next_steps"]))
 
     def test_placeholder_endpoint_without_server_ipv6(self):

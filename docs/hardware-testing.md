@@ -12,14 +12,14 @@ If you own a device listed below (or a close relative), open a
 
 1. Run the read-only probe:
    ```bash
-   nexxt probe --report http://192.168.1.254
+   home-gateway probe --report http://192.168.1.254
    ```
 2. Try authentication (button login, or note the method your UI uses).
-3. Run `nexxt verify` to check whether the diagnostic injection channel is
+3. Run `home-gateway verify` to check whether the diagnostic injection channel is
    still present.
 4. Optionally run the guided setup:
    ```bash
-   nexxt setup
+   home-gateway setup
    ```
 
 ## Currently speculative / untested targets
@@ -34,16 +34,16 @@ If you own a device listed below (or a close relative), open a
 A driver can be marked `verified` for a given firmware once a volunteer has
 successfully run:
 
-- `nexxt probe` → strong board match
-- `nexxt session login` or equivalent auth
-- `nexxt verify` → `CONFIRMED`
-- `nexxt setup` → SSH handshake OK
-- `nexxt fw ensure` + `nexxt doctor` → no errors
+- `home-gateway probe` → strong board match
+- `home-gateway session login` or equivalent auth
+- `home-gateway verify` → `CONFIRMED`
+- `home-gateway setup` → SSH handshake OK
+- `home-gateway fw ensure` + `home-gateway doctor` → no errors
 
 ## Safety
 
 - Test only on a gateway **you own**.
 - The toolkit does not flash firmware or change TR-069, but speculative
 drivers may still behave differently on your firmware revision.
-- `nexxt ssh teardown` rolls back the toolkit's own changes if you reach the
+- `home-gateway ssh teardown` rolls back the toolkit's own changes if you reach the
   SSH bootstrap step.

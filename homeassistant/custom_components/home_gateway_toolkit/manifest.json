@@ -1,0 +1,11 @@
+{
+  "domain": "home_gateway_toolkit",
+  "name": "home-gateway-toolkit",
+  "codeowners": ["@VulcanusALex"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/VulcanusALex/home-gateway-toolkit",
+  "iot_class": "local_polling",
+  "requirements": ["home-gateway-toolkit>=1.6.0"],
+  "version": "1.6.0"
+}

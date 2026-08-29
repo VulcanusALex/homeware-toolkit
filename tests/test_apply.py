@@ -12,10 +12,10 @@ import os
 import tempfile
 import unittest
 
-from nexxt_toolkit import apply as apply_mod
-from nexxt_toolkit.apply import (ConfigError, apply_plan, load_config, plan,
+from home_gateway_toolkit import apply as apply_mod
+from home_gateway_toolkit.apply import (ConfigError, apply_plan, load_config, plan,
                                  read_ssh_state, run_apply, run_diff)
-from nexxt_toolkit.firewall import FW
+from home_gateway_toolkit.firewall import FW
 
 GOOD_UCI = ("dropbear.nx=dropbear\n"
             "dropbear.nx.enable='1'\n"
@@ -126,7 +126,7 @@ class LoadConfigTest(unittest.TestCase):
 
     def test_example_file_is_valid(self):
         here = os.path.dirname(os.path.abspath(__file__))
-        config = load_config(os.path.join(here, "..", "examples", "nexxt.json"))
+        config = load_config(os.path.join(here, "..", "examples", "home_gateway.json"))
         self.assertEqual(len(config.firewall_rules), 2)
         self.assertEqual(config.ssh,
                          {"require_key_only": True, "require_lan_only": True})

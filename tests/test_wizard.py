@@ -1,4 +1,4 @@
-"""Tests for the local setup wizard (nexxt setup --wizard)."""
+"""Tests for the local setup wizard (home-gateway setup --wizard)."""
 
 from __future__ import annotations
 
@@ -7,8 +7,8 @@ import unittest
 import urllib.error
 import urllib.request
 
-from nexxt_toolkit import wizard
-from nexxt_toolkit.simulator import FakeGateway
+from home_gateway_toolkit import wizard
+from home_gateway_toolkit.simulator import FakeGateway
 
 
 class WizardServerTest(unittest.TestCase):
@@ -36,7 +36,7 @@ class WizardServerTest(unittest.TestCase):
     def test_serves_html(self):
         status, body = self._get("/")
         self.assertEqual(status, 200)
-        self.assertIn("nexxt setup wizard", body)
+        self.assertIn("home-gateway setup wizard", body)
         self.assertIn("<button", body)
 
     def test_probe_endpoint(self):

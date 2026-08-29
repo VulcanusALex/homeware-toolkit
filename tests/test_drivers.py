@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from nexxt_toolkit import compat, driver, drivers
+from home_gateway_toolkit import compat, driver, drivers
 
 
 class DriverRegistryTest(unittest.TestCase):

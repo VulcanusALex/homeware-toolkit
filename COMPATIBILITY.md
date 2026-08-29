@@ -1,8 +1,8 @@
 # Compatibility matrix
 
 The authoritative, machine-readable source is
-[`nexxt_toolkit/compat.json`](nexxt_toolkit/compat.json) — the injection
-guard and `nexxt probe --report` both consume it. This page is the
+[`home_gateway_toolkit/compat.json`](home_gateway_toolkit/compat.json) — the injection
+guard and `home-gateway probe --report` both consume it. This page is the
 human-readable summary.
 
 | Device | Board | Firmware | Status | Source |
@@ -16,16 +16,16 @@ human-readable summary.
   firewall management) has been exercised on this exact firmware.
 - **untested** — the board family matches a known fingerprint but the exact
   firmware is not listed. The toolkit proceeds (the guard warns), but verify
-  each step with `nexxt doctor` and consider sending a report.
+  each step with `home-gateway doctor` and consider sending a report.
 - **unknown** — no fingerprint matches. Privileged operations are refused
   unless you pass `--force`.
 
 ## Reporting a new device or firmware
 
-1. Run `nexxt probe --report http://192.168.1.254` and save the Markdown
+1. Run `home-gateway probe --report http://192.168.1.254` and save the Markdown
    output (it contains no credentials, keys, MACs or serials).
 2. Open an issue using the *Compatibility report* template and paste the
-   report: <https://github.com/VulcanusALex/nexxt-one-toolkit/issues>
+   report: <https://github.com/VulcanusALex/home-gateway-toolkit/issues>
 3. Once confirmed, the fingerprint is added to `compat.json` — for the
    NeXXt One family usually no code change is required.
 
@@ -59,7 +59,7 @@ without hard-coding NeXXt One constants.
 }
 ```
 
-- `driver` selects the device-family implementation under `nexxt_toolkit/drivers/`.
+- `driver` selects the device-family implementation under `home_gateway_toolkit/drivers/`.
 - `capabilities` are merged with the NeXXt One defaults, so a new entry only
   needs to override values that differ from the default.
 
@@ -68,10 +68,10 @@ without hard-coding NeXXt One constants.
 When a fingerprint matches a different board family, the workflow is:
 
 1. Add the fingerprint to `compat.json` with `"driver": "<name>"`.
-2. Create `nexxt_toolkit/drivers/<name>.py` and register it in
-   `nexxt_toolkit/drivers/__init__.py`.
+2. Create `home_gateway_toolkit/drivers/<name>.py` and register it in
+   `home_gateway_toolkit/drivers/__init__.py`.
 3. Start by overriding the capabilities that differ; the CLI and Injector will
   pick them up automatically.
 
 Until a dedicated driver module lands, unknown driver names fall back to the
-`nexxt` driver, so new `compat.json` entries can be shipped before code.
+`home-gateway` driver, so new `compat.json` entries can be shipped before code.

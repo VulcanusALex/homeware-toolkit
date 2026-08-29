@@ -8,7 +8,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/), versioning is se
 ### Added
 - Device-driver framework: `compat.json` schema 2 adds `driver` and
   `capabilities` per fingerprint; the CLI loads the matching driver from
-  `nexxt_toolkit/drivers/` and reads device-specific constants instead of
+  `home_gateway_toolkit/drivers/` and reads device-specific constants instead of
   hard-coding NeXXt One values.
 - Second driver (`openwrt`) demonstrating multi-device support and capability
   inheritance from NeXXt defaults.
@@ -16,9 +16,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/), versioning is se
   VBNT-6, plus a community hardware-testing program.
 - Multi-profile simulator: `FakeGateway` accepts a `profile` parameter to
   exercise different board/firmware fingerprints without hardware.
-- Local web setup wizard: `nexxt setup --wizard` serves a browser-based guide
+- Local web setup wizard: `home-gateway setup --wizard` serves a browser-based guide
   on `127.0.0.1` for probe → login → verify → SSH bootstrap.
-- Installer build script (`tools/build_installer.py`) producing `nexxt.pyz`,
+- Installer build script (`tools/build_installer.py`) producing `home_gateway.pyz`,
   a macOS `.app` zip, and a Windows PyInstaller spec.
 - Home Assistant HACS custom component skeleton under `homeassistant/`.
 
@@ -47,32 +47,32 @@ Format follows [Keep a Changelog](https://keepachangelog.com/), versioning is se
   is sent (character allowlists, absolute-path and length rules), closing the
   last unvalidated interpolation into the injection channel.
 - SSH connections are now trust-on-first-use by default: host keys are
-  recorded in `~/.nexxt-one-toolkit/known_hosts` (0700/0600) with
+  recorded in `~/.home-gateway-toolkit/known_hosts` (0700/0600) with
   `StrictHostKeyChecking=accept-new`. `ssh run --no-verify-host-key`
   restores the old behaviour explicitly.
-- Optional TLS certificate pinning: `nexxt session fingerprint` prints the
+- Optional TLS certificate pinning: `home-gateway session fingerprint` prints the
   gateway certificate's SHA-256 fingerprint and `--tls-fingerprint` enforces
   it on every HTTPS request (CA verification remains off for the self-signed
   device certificate).
 
 ### Added
-- `nexxt simulate`: in-process fake gateway (sessions, button login, ping
+- `home-gateway simulate`: in-process fake gateway (sessions, button login, ping
   injection channel with an interpreted shell subset, timing behaviour) for
   hardware-free development and demos, plus 17 integration tests that run
   probe, login, verify and a full md5-verified transfer against it.
-- `nexxt apply` / `nexxt diff`: declarative desired-state management from a
+- `home-gateway apply` / `home-gateway diff`: declarative desired-state management from a
   JSON config (firewall pinholes, SSH policy assertions). Idempotent,
   transactional via the existing ensure/rollback machinery; optional
   `firewall.prune` removes only toolkit-shaped extra rules.
-  See `examples/nexxt.json`.
-- `nexxt vpn wireguard`: one-step WireGuard remote access — pure-Python
+  See `examples/home_gateway.json`.
+- `home-gateway vpn wireguard`: one-step WireGuard remote access — pure-Python
   RFC 7748 X25519 key generation, server/client configs (0600), unique
   per-client PSKs and an idempotent IPv6 UDP pinhole on the gateway.
-- `nexxt dashboard`: live read-only curses dashboard (WAN classification,
+- `home-gateway dashboard`: live read-only curses dashboard (WAN classification,
   6rd prefixes, SSH and firewall state) with graceful degradation on
   non-terminals.
-- `nexxt probe --report`: Markdown compatibility report for GitHub issues;
-  firmware fingerprints are now data-driven via `nexxt_toolkit/compat.json`
+- `home-gateway probe --report`: Markdown compatibility report for GitHub issues;
+  firmware fingerprints are now data-driven via `home_gateway_toolkit/compat.json`
   and documented in `COMPATIBILITY.md` — new firmware reports no longer
   require code changes.
 
@@ -95,18 +95,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/), versioning is se
   handshake fails.
 
 ### Added
-- `nexxt setup`: guided probe, physical-button login, non-persistent
+- `home-gateway setup`: guided probe, physical-button login, non-persistent
   verification, local RSA key generation, confirmation, bootstrap and doctor.
-- `nexxt inbound observe`: proves arrival at the gateway from positive named
+- `home-gateway inbound observe`: proves arrival at the gateway from positive named
   firewall-rule counter deltas and treats zero as inconclusive.
-- `nexxt fw ensure`: idempotent named pinholes with UCI backup and rollback;
-  `nexxt fw audit`: duplicate, broad-WAN and UCI/runtime checks.
+- `home-gateway fw ensure`: idempotent named pinholes with UCI backup and rollback;
+  `home-gateway fw audit`: duplicate, broad-WAN and UCI/runtime checks.
   The existing `fw allow` CLI is retained as an alias for the safe ensure path.
-- `nexxt audit-update`: firmware fingerprint change tracking plus SSH policy,
+- `home-gateway audit-update`: firmware fingerprint change tracking plus SSH policy,
   rollback-state and firewall-runtime auditing after OTA updates.
-- `nexxt support-bundle`: reviewable ZIP/JSON with a strict sysinfo allowlist
+- `home-gateway support-bundle`: reviewable ZIP/JSON with a strict sysinfo allowlist
   and automatic credential, session, MAC, serial and IPv4 redaction.
-- Release workflow now builds wheel/sdist, a standalone `nexxt.pyz`, SHA-256
+- Release workflow now builds wheel/sdist, a standalone `home_gateway.pyz`, SHA-256
   checksums, uploads GitHub Release assets and publishes via PyPI OIDC.
 
 ### Changed
@@ -134,7 +134,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/), versioning is se
   when the IPv6 validator regex was absent — the exact "firmware differs" case
   the probe exists to report. Now short-circuits to `incomplete-match`.
 - **`transfer` verifies the assembled file end-to-end.** `assemble` takes an
-  optional `expect_md5` and the `nexxt transfer` command now checks the target
+  optional `expect_md5` and the `home-gateway transfer` command now checks the target
   md5 (defends against the backend's async/out-of-order segment writes) and
   cleans up its `/tmp` scratch files.
 - User-Agent now derives from the package version (was pinned to `1.2`).
@@ -154,7 +154,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/), versioning is se
 ## [1.3.0] - 2026-08-25
 
 ### Added
-- **Scripted button login now works end-to-end** (`nexxt session login`): the
+- **Scripted button login now works end-to-end** (`home-gateway session login`): the
   root cause of the old failure was found in the router sources
   (`sessionmgr.lua`/`login.wat`) — the confirm step only authenticates the
   most recently created session, so the client now mints a fresh session
@@ -166,11 +166,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/), versioning is se
 ## [1.2.0] - 2026-08-25
 
 ### Added
-- **Unified CLI** `nexxt` with subcommands: `probe`, `doctor`, `session`,
+- **Unified CLI** `home-gateway` with subcommands: `probe`, `doctor`, `session`,
   `verify`, `transfer`, `ssh`, `fw`, `wanwatch`; global `--json`, `--quiet`,
   `--force`, `--version` flags. Legacy `tools/*.py` scripts remain as
   backward-compatible shims.
-- **`nexxt doctor`**: end-to-end health check (web UI compatibility, session,
+- **`home-gateway doctor`**: end-to-end health check (web UI compatibility, session,
   injection, SSH service, WAN public-IPv4) with per-stage hints.
 - **Firmware fingerprint guard**: injection commands refuse to run on
   unrecognized device families unless `--force` is given.
@@ -179,7 +179,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/), versioning is se
   encoding/bisect, oracle thresholds, fingerprint guard, pubkey validation,
   HAR cookie import, WAN classification, CLI parsing.
 - `SECURITY.md`, `CONTRIBUTING.md`, issue/PR templates, CI badge.
-- `pyproject.toml`: installable package with `nexxt` console script.
+- `pyproject.toml`: installable package with `home-gateway` console script.
 
 ### Changed
 - Transfer segment verification is now a single `grep -qFx` oracle call
@@ -188,10 +188,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/), versioning is se
 ## [1.1.0] - 2026-08-25
 
 ### Added
-- `nexxt_ssh.py run` subcommand (execute commands over the persistent SSH
+- `home_gateway_ssh.py run` subcommand (execute commands over the persistent SSH
   service), `bootstrap --test` handshake self-check.
-- `nexxt_firewall.py`: list/allow/delete precise pinhole rules over SSH.
-- `nexxt_wanwatch.py`: cron-friendly watcher for public IPv4 provisioning.
+- `home_gateway_firewall.py`: list/allow/delete precise pinhole rules over SSH.
+- `home_gateway_wanwatch.py`: cron-friendly watcher for public IPv4 provisioning.
 - GitHub Actions CI.
 
 ## [1.0.0] - 2026-08-25

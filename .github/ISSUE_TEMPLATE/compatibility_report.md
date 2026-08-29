@@ -12,9 +12,9 @@ labels: compatibility
 
 **Sanitized support bundle**
 
-Run `./nexxt support-bundle` and attach the resulting ZIP after reviewing
+Run `./home-gateway support-bundle` and attach the resulting ZIP after reviewing
 `report.json`. It excludes session credentials, keys, MACs, serials and raw
 IPv4 addresses by design.
 
-**Does the injection verification (`./nexxt verify`) succeed?**
+**Does the injection verification (`./home-gateway verify`) succeed?**
 yes / no / not tried

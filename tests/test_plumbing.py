@@ -5,8 +5,8 @@ import tempfile
 import unittest
 from unittest import mock
 
-from nexxt_toolkit import __version__
-from nexxt_toolkit import transfer, wanwatch, doctor, client
+from home_gateway_toolkit import __version__
+from home_gateway_toolkit import transfer, wanwatch, doctor, client
 
 
 class _FakeInj:
@@ -48,9 +48,9 @@ class TransferMd5Verify(unittest.TestCase):
 
 class PathExpansion(unittest.TestCase):
     def test_leading_tilde_expands(self):
-        self.assertEqual(os.path.expanduser("~/.nexxt_wanwatch_state.json"),
+        self.assertEqual(os.path.expanduser("~/.home_gateway_wanwatch_state.json"),
                          os.path.join(os.path.expanduser("~"),
-                                      ".nexxt_wanwatch_state.json"))
+                                      ".home_gateway_wanwatch_state.json"))
 
     def test_embedded_tilde_untouched(self):
         self.assertEqual(os.path.expanduser("/tmp/a~b.json"), "/tmp/a~b.json")

@@ -3,10 +3,10 @@
 
 This script produces:
 
-- ``dist/nexxt.pyz`` — the dependency-free zipapp (existing release artifact).
-- ``dist/nexxt-one-toolkit-<version>-macos.app.zip`` — macOS .app bundle
+- ``dist/home_gateway.pyz`` — the dependency-free zipapp (existing release artifact).
+- ``dist/home-gateway-toolkit-<version>-macos.app.zip`` — macOS .app bundle
   (when run on macOS with PyInstaller installed).
-- ``dist/nexxt-one-toolkit-<version>-win64.spec`` — PyInstaller spec for the
+- ``dist/home-gateway-toolkit-<version>-win64.spec`` — PyInstaller spec for the
   Windows .exe, meant to be built on a Windows runner or CI.
 
 Usage:
@@ -19,7 +19,7 @@ Requirements for macOS app bundling:
 
 The Windows spec can be built locally on Windows with:
 
-    pyinstaller dist/nexxt-one-toolkit-X.Y.Z-win64.spec
+    pyinstaller dist/home-gateway-toolkit-X.Y.Z-win64.spec
 """
 
 from __future__ import annotations
@@ -46,7 +46,7 @@ def _run(cmd: list[str], **kwargs) -> None:
 
 def get_version() -> str:
     """Read version from the package without importing side effects."""
-    init = (PROJECT_ROOT / "nexxt_toolkit" / "__init__.py").read_text()
+    init = (PROJECT_ROOT / "home_gateway_toolkit" / "__init__.py").read_text()
     for line in init.splitlines():
         if line.startswith("__version__"):
             return line.split("=", 1)[1].strip().strip('"\'')
@@ -56,14 +56,14 @@ def get_version() -> str:
 def build_pyz(version: str) -> Path:
     """Build the standalone zipapp."""
     DIST_DIR.mkdir(exist_ok=True)
-    pyz = DIST_DIR / "nexxt.pyz"
+    pyz = DIST_DIR / "home_gateway.pyz"
     # Build into a temporary directory so we can include package data.
     if BUILD_DIR.exists():
         shutil.rmtree(BUILD_DIR)
-    build_pkg = BUILD_DIR / "nexxt_toolkit"
+    build_pkg = BUILD_DIR / "home_gateway_toolkit"
     build_pkg.mkdir(parents=True)
 
-    src_pkg = PROJECT_ROOT / "nexxt_toolkit"
+    src_pkg = PROJECT_ROOT / "home_gateway_toolkit"
     for item in src_pkg.iterdir():
         if item.is_file():
             shutil.copy2(item, build_pkg)
@@ -73,7 +73,7 @@ def build_pyz(version: str) -> Path:
     # Entry point shim.
     main_py = BUILD_DIR / "__main__.py"
     main_py.write_text(
-        "from nexxt_toolkit.cli import main\n"
+        "from home_gateway_toolkit.cli import main\n"
         "import sys\n"
         "sys.exit(main())\n"
     )
@@ -96,7 +96,7 @@ def build_macos_app(version: str, pyz: Path) -> Path | None:
         print("        install with: pip install pyinstaller")
         return None
 
-    app_name = "nexxt"
+    app_name = "home-gateway"
     spec_dir = BUILD_DIR / "pyinstaller"
     spec_dir.mkdir(parents=True, exist_ok=True)
 
@@ -104,12 +104,12 @@ def build_macos_app(version: str, pyz: Path) -> Path | None:
     entry = spec_dir / "nexxt_entry.py"
     entry.write_text(
         "# Auto-generated entry point for PyInstaller\n"
-        "from nexxt_toolkit.cli import main\n"
+        "from home_gateway_toolkit.cli import main\n"
         "import sys\n"
         "sys.exit(main())\n"
     )
 
-    dist_app = DIST_DIR / f"nexxt-one-toolkit-{version}-macos.app"
+    dist_app = DIST_DIR / f"home-gateway-toolkit-{version}-macos.app"
     if dist_app.exists():
         shutil.rmtree(dist_app)
 
@@ -132,7 +132,7 @@ def build_macos_app(version: str, pyz: Path) -> Path | None:
         return None
 
     built_app.rename(dist_app)
-    zip_path = DIST_DIR / f"nexxt-one-toolkit-{version}-macos.app.zip"
+    zip_path = DIST_DIR / f"home-gateway-toolkit-{version}-macos.app.zip"
     if zip_path.exists():
         zip_path.unlink()
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -144,17 +144,17 @@ def build_macos_app(version: str, pyz: Path) -> Path | None:
 
 def write_windows_spec(version: str) -> Path:
     """Generate a PyInstaller spec file for Windows builds."""
-    spec = DIST_DIR / f"nexxt-one-toolkit-{version}-win64.spec"
+    spec = DIST_DIR / f"home-gateway-toolkit-{version}-win64.spec"
     entry = BUILD_DIR / "pyinstaller" / "nexxt_entry.py"
     entry.parent.mkdir(parents=True, exist_ok=True)
     entry.write_text(
         "# Auto-generated entry point for PyInstaller\n"
-        "from nexxt_toolkit.cli import main\n"
+        "from home_gateway_toolkit.cli import main\n"
         "import sys\n"
         "sys.exit(main())\n"
     )
     spec_content = f'''# -*- mode: python ; coding: utf-8 -*-
-# PyInstaller spec for nexxt-one-toolkit v{version}
+# PyInstaller spec for home-gateway-toolkit v{version}
 # Build on Windows with: pyinstaller "{spec.name}"
 
 a = Analysis(
@@ -177,7 +177,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='nexxt',
+    name='home-gateway',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -199,7 +199,7 @@ exe = EXE(
 
 def main() -> int:
     version = get_version()
-    print(f"[build] nexxt-one-toolkit {version}")
+    print(f"[build] home-gateway-toolkit {version}")
 
     DIST_DIR.mkdir(exist_ok=True)
     pyz = build_pyz(version)

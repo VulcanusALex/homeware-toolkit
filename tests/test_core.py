@@ -1,4 +1,4 @@
-"""Hardware-free unit tests for nexxt-one-toolkit core logic.
+"""Hardware-free unit tests for home-gateway-toolkit core logic.
 
 Run: python -m unittest discover -s tests -v
 """
@@ -15,13 +15,13 @@ from unittest import mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-from nexxt_toolkit import transfer, wanwatch  # noqa: E402
-from nexxt_toolkit import inject as inject_mod  # noqa: E402
-from nexxt_toolkit import ssh as ssh_mod  # noqa: E402
-from nexxt_toolkit.cli import build_parser  # noqa: E402
-from nexxt_toolkit.client import NexxtClient  # noqa: E402
-from nexxt_toolkit.doctor import _wan_class  # noqa: E402
-from nexxt_toolkit.firewall import NAME_RE  # noqa: E402
+from home_gateway_toolkit import transfer, wanwatch  # noqa: E402
+from home_gateway_toolkit import inject as inject_mod  # noqa: E402
+from home_gateway_toolkit import ssh as ssh_mod  # noqa: E402
+from home_gateway_toolkit.cli import build_parser  # noqa: E402
+from home_gateway_toolkit.client import NexxtClient  # noqa: E402
+from home_gateway_toolkit.doctor import _wan_class  # noqa: E402
+from home_gateway_toolkit.firewall import NAME_RE  # noqa: E402
 
 
 class TestTransferEncoding(unittest.TestCase):
@@ -111,7 +111,7 @@ class MockClient:
 
     def require_auth(self):
         if not self._authed:
-            from nexxt_toolkit.client import SessionExpired
+            from home_gateway_toolkit.client import SessionExpired
             raise SessionExpired("nope")
 
     def get(self, service, **params):

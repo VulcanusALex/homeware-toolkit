@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from . import probe as probe_mod
-from .client import NexxtClient, SessionExpired
+from .client import GatewayClient, SessionExpired
 from .inject import Injector, run_ping
 from .ssh import host_of, ssh_run
 from .ssh import status as ssh_status
@@ -44,7 +44,7 @@ def run_doctor(base_url: str, port: int, key: str | None = None,
         return stages, 1
 
     # 2. session
-    client = NexxtClient(base_url)
+    client = GatewayClient(base_url)
     authed = client.is_authenticated()
     if authed:
         stage("web-session", PASS)
@@ -56,8 +56,12 @@ def run_doctor(base_url: str, port: int, key: str | None = None,
     if authed and check_injection:
         try:
             inj = Injector(client)
-            base, _ = run_ping(client, "127.0.0.1")
-            e, _ = run_ping(client, ":::::::;sleep${IFS}3")
+            base, _ = run_ping(client, "127.0.0.1",
+                               service=inj.injection_service,
+                               reader=inj.injection_reader)
+            e, _ = run_ping(client, f"{inj.payload_prefix}sleep{inj.I}3",
+                            service=inj.injection_service,
+                            reader=inj.injection_reader)
             if e > base + 1.5:
                 stage("command-injection", PASS, f"baseline {base:.1f}s, probe {e:.1f}s")
             else:
@@ -92,10 +96,13 @@ def run_doctor(base_url: str, port: int, key: str | None = None,
 
     # 5. WAN IPv4 assignment. A private address does NOT prove that inbound
     # is blocked: an ISP can still provide 1:1 NAT or another upstream mapping.
+    from .driver import default_device
+    wan4_iface = default_device().cap("wan", "wan4_interface",
+                                      default="veip0_1")
     wan_class = None
     if key:
         proc = ssh_run(host_of(base_url), port, key,
-                       "ip -4 addr show dev veip0_1 | grep 'inet '")
+                       f"ip -4 addr show dev {wan4_iface} | grep 'inet '")
         import re
         m = re.search(r"inet (\d+\.\d+\.\d+\.\d+)", proc.stdout)
         if m:

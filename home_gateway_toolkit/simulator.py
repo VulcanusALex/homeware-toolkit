@@ -96,6 +96,9 @@ app.factory('validators', function () {
 """
 
 _NEXXT_SHARED_SERVICES_JS = """'use strict';
+// The odd array-index line below intentionally reproduces the exact
+// "apiServiceUrl', '/status.cgi'" substring the compatibility probe looks
+// for in real NeXXt One firmware assets.  Do not "fix" it.
 app.service('api', function ($http) {
     $http.defaults.headers.post['apiServiceUrl', '/status.cgi'] = true;
     var apiServiceUrl = '/status.cgi'; // apiServiceUrl', '/status.cgi'
@@ -162,7 +165,7 @@ GENERIC_HOMEWARE_PROFILE = DeviceProfile(
     name="generic_homeware",
     firmware="22.2.0378_FW_058_VCNTI",
     board="VCNT-I",
-    model="VANT-6",
+    model="VBNT-6",
     product="Vodafone",
     asset_stamp=_GENERIC_HOMEWARE_ASSET_STAMP,
     login_html=_GENERIC_HOMEWARE_LOGIN_HTML,

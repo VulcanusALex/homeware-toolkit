@@ -19,7 +19,7 @@ from home_gateway_toolkit import transfer, wanwatch  # noqa: E402
 from home_gateway_toolkit import inject as inject_mod  # noqa: E402
 from home_gateway_toolkit import ssh as ssh_mod  # noqa: E402
 from home_gateway_toolkit.cli import build_parser  # noqa: E402
-from home_gateway_toolkit.client import NexxtClient  # noqa: E402
+from home_gateway_toolkit.client import GatewayClient  # noqa: E402
 from home_gateway_toolkit.doctor import _wan_class  # noqa: E402
 from home_gateway_toolkit.firewall import NAME_RE  # noqa: E402
 
@@ -196,9 +196,9 @@ class TestCookieImport(unittest.TestCase):
             json.dump(har, f)
             path = f.name
         try:
-            client = NexxtClient("https://192.168.1.254",
+            client = GatewayClient("https://192.168.1.254",
                                  work_dir=tempfile.mkdtemp())
-            with mock.patch.object(NexxtClient, "is_authenticated", return_value=True):
+            with mock.patch.object(GatewayClient, "is_authenticated", return_value=True):
                 self.assertTrue(client.import_cookie(path))
             cookies = list(client.jar)
             self.assertEqual(cookies[0].value, "deadbeef1234")

@@ -134,7 +134,9 @@ login and injection channel.
   (requires PyInstaller).
 - **Web setup wizard**: `home-gateway setup --wizard` opens a local browser guide.
 - **Home Assistant**: install the HACS custom component from
-  [`homeassistant/`](homeassistant/) (skeleton; polling is planned).
+  [`custom_components/home_gateway_toolkit/`](custom_components/home_gateway_toolkit/)
+  — setup notes in [docs/homeassistant.md](docs/homeassistant.md) (skeleton;
+  polling is planned).
 
 The toolkit is also structured as a small device-driver framework: each
 fingerprint in `compat.json` selects a driver under `home_gateway_toolkit/drivers/`
@@ -181,8 +183,9 @@ Docs:
 
 ## 中文摘要
 
-本项目是 Fastweb NeXXt One 网关（FGA221D / GDNT-S）的开源工具箱：只读兼容性探测、
-Ping 诊断命令注入的无持久化验证、经该通道的可靠文件传输、一键部署
+本项目是**家用网关**的开源工具箱，诞生于 Fastweb **NeXXt One**（FGA221D / GDNT-S），
+并通过设备 profile/driver 机制扩展到其他 Homeware / OpenWrt 设备：
+只读兼容性探测、Ping 诊断命令注入的无持久化验证、经该通道的可靠文件传输、一键部署
 **持久化、仅密钥、仅 LAN** 的 SSH 服务（可随时 teardown 完全还原）、
 精确防火墙管理、声明式配置收敛（`home-gateway apply/diff`）、WireGuard 远程访问一键引导、
 实时终端仪表盘、真实入站计数观察、OTA 后安全审计、脱敏支持包与 WAN 状态监控。
@@ -200,7 +203,9 @@ v1.6.0 起传输参数全面校验、SSH 主机密钥 TOFU 验证、可选 TLS �
 
 ## Sintesi italiana
 
-Toolkit open-source per il gateway **Fastweb NeXXt One** (FGA221D / GDNT-S):
+Toolkit open-source per **gateway domestici**. Nato sul Fastweb **NeXXt One**
+(FGA221D / GDNT-S), ora si estende ad altre famiglie di gateway tramite un
+sistema di profili e driver:
 sondaggio di compatibilità in sola lettura, verifica non distruttiva della
 command injection nel diagnostico ping, trasferimento file affidabile tramite
 quel canale, e installazione di un servizio **SSH persistente, solo-chiave,

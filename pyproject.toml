@@ -29,8 +29,8 @@ Issues = "https://github.com/VulcanusALex/home-gateway-toolkit/issues"
 [project.scripts]
 home-gateway = "home_gateway_toolkit.cli:main"
 
-[tool.setuptools]
-packages = ["home_gateway_toolkit"]
+[tool.setuptools.packages.find]
+include = ["home_gateway_toolkit*"]
 
 [tool.setuptools.package-data]
 home_gateway_toolkit = ["compat.json"]

@@ -60,12 +60,12 @@ class HomeGatewayConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @callback
     def async_get_options_flow(
         config_entry: config_entries.ConfigEntry,
-    ) -> NexxtOptionsFlow:
+    ) -> HomeGatewayOptionsFlow:
         """Get the options flow for this handler."""
-        return NexxtOptionsFlow(config_entry)
+        return HomeGatewayOptionsFlow(config_entry)
 
 
-class NexxtOptionsFlow(config_entries.OptionsFlow):
+class HomeGatewayOptionsFlow(config_entries.OptionsFlow):
     """Handle options."""
 
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:

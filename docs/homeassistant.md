@@ -1,7 +1,7 @@
 # Home Assistant integration for home-gateway-toolkit
 
-This directory contains a HACS-compatible custom component for
-`home-gateway-toolkit`.
+The repository root contains a HACS-compatible custom component under
+`custom_components/home_gateway_toolkit/`.
 
 ## Installation (HACS)
 

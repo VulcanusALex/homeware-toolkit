@@ -220,7 +220,7 @@ def generate_compat_report(probe_result: dict,
 
     stamps = analysis.get("asset_version_stamps", [])
     lines = [
-        "# NeXXt One compatibility report",
+        "# home-gateway-toolkit compatibility report",
         "",
         f"- Date (UTC): {today}",
         f"- Target: {probe_result.get('target', 'n/a')}",

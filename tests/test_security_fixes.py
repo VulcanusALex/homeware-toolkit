@@ -252,7 +252,7 @@ class ClientPinningWiringTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.object(client_mod, "ensure_local_target",
                                    return_value=["192.0.2.1"]):
-                client = client_mod.NexxtClient(
+                client = client_mod.GatewayClient(
                     "https://192.168.1.254", work_dir=tmp, **kwargs)
         return client
 

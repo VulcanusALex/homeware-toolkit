@@ -67,18 +67,20 @@ def detect_from_sysinfo(sysinfo: dict) -> Device:
     result = compat.match_fingerprint(
         board=str(sysinfo.get("hw_version", "")),
         model=str(sysinfo.get("model", "")),
-        product=str(sysinfo.get("model", "")),
+        product=str(sysinfo.get("product_name",
+                                sysinfo.get("model", ""))),
         firmware=str(sysinfo.get("fw_version", "")),
     )
-    name = compat.entry_driver(result.entry)
-    caps = compat.entry_capabilities(result.entry)
-    return Device(name, result.entry, caps)
+    return detect_from_entry(result.entry)
 
 
 def detect_from_entry(entry: dict) -> Device:
-    """Build a Device from an already-known fingerprint entry."""
-    return Device(
-        compat.entry_driver(entry),
-        entry,
-        compat.entry_capabilities(entry),
-    )
+    """Build a Device from an already-known fingerprint entry.
+
+    The driver registry is consulted (lazily, to avoid an import cycle) so a
+    driver module's capability overrides are applied on top of the
+    ``compat.json`` entry — one source of truth per concern.
+    """
+    name = compat.entry_driver(entry)
+    from . import drivers
+    return drivers.make_device(name, entry)

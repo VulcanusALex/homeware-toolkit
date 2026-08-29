@@ -23,7 +23,6 @@ CGNAT_LAST = ipaddress.ip_address("100.127.255.255")
 
 # Markers delimit the sections of the combined remote command so we can parse
 # each independently. ifstatus emits JSON; the ip commands emit plain text.
-_M_SIXRD = "__NX_6RD__"
 _M_WAN6 = "__NX_WAN6__"
 _M_IP4 = "__NX_IP4__"
 _M_IP6 = "__NX_IP6__"
@@ -221,7 +220,7 @@ def watch(host: str, port: int, key: str, state_file: str,
     if changed:
         report["change_summary"] = _describe_change(previous, snapshot)
         if notify:
-            _notify("Fastweb WAN changed", report["change_summary"])
+            _notify("Gateway WAN changed", report["change_summary"])
         return report, 2
     if snapshot["wan_ipv4"] and snapshot["wan_ipv4_class"] == "PUBLIC":
         if notify and previous is not None:

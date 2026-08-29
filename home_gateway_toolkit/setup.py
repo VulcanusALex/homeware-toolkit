@@ -6,7 +6,7 @@ import os
 import subprocess
 
 from . import ssh as ssh_mod
-from .client import NexxtClient
+from .client import GatewayClient
 from .doctor import run_doctor
 from .inject import Injector
 from .probe import run_probe
@@ -68,7 +68,7 @@ def run_setup(base_url: str, port: int = 2222, key_path: str = DEFAULT_KEY,
             "firmware fingerprint is not recognized; inspect 'home-gateway probe' and "
             "use --force only after verifying compatibility")
 
-    client = NexxtClient(base_url)
+    client = GatewayClient(base_url)
     if not client.is_authenticated() and not client.button_login(60, log=log):
         raise RuntimeError("physical-button login did not complete")
     report["steps"].append({"step": "session", "result": "authenticated"})

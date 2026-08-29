@@ -9,6 +9,7 @@ human-readable summary.
 | --- | --- | --- | --- | --- |
 | Fastweb NeXXt One (Technicolor/Vantiva FGA221D, `FGA221DFWB`) | GDNT-S | `22.2.0378_FW_058_FGA221D` | ✅ verified | maintainer's device (see README) |
 | Fastweb NeXXt One (Technicolor/Vantiva FGA221D, `FGA221DFWB`) | GDNT-S | `22.2.0378_FW_056_FGA221D` | ✅ verified | community report (see README) |
+| Vodafone UK Technicolor VCNT-I / VBNT-6 (Vantiva Homeware) | VCNT-I | — | 🧪 untested | speculative driver; see [docs/hardware-testing.md](docs/hardware-testing.md) |
 
 ## Status legend
 
@@ -74,4 +75,4 @@ When a fingerprint matches a different board family, the workflow is:
   pick them up automatically.
 
 Until a dedicated driver module lands, unknown driver names fall back to the
-`home-gateway` driver, so new `compat.json` entries can be shipped before code.
+`nexxt` (NeXXt One) driver, so new `compat.json` entries can be shipped before code.

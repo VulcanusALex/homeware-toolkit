@@ -10,7 +10,7 @@ from pathlib import Path
 class HacsManifestTest(unittest.TestCase):
     def test_manifest_is_valid_json(self):
         manifest = Path(__file__).resolve().parent.parent / (
-            "homeassistant/custom_components/home_gateway_toolkit/manifest.json")
+            "custom_components/home_gateway_toolkit/manifest.json")
         data = json.loads(manifest.read_text())
         self.assertEqual(data["domain"], "home_gateway_toolkit")
         self.assertTrue(data["config_flow"])

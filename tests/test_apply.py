@@ -216,7 +216,7 @@ class LoadConfigTest(unittest.TestCase):
 
     def test_file_not_found(self):
         with self.assertRaisesRegex(ConfigError, "file not found"):
-            load_config("/nonexistent/nexxt.json")
+            load_config("/nonexistent/home_gateway.json")
 
     def test_invalid_json(self):
         handle = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False)

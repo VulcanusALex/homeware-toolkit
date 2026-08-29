@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "home-gateway-toolkit",
-        "description": "Set up monitoring for your NeXXt One gateway.",
+        "description": "Set up monitoring for your residential gateway.",
         "data": {
           "base_url": "Gateway base URL",
           "ssh_key": "SSH private key path",

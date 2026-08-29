@@ -16,7 +16,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Compile everything
-        run: python -m py_compile home_gateway_toolkit/*.py tools/*.py home-gateway
+        run: python -m py_compile home_gateway_toolkit/*.py home_gateway_toolkit/drivers/*.py tools/*.py home-gateway
       - name: Unit tests
         run: python -m unittest discover -s tests -v
       - name: CLI smoke tests
@@ -45,4 +45,7 @@ jobs:
           import home_gateway_toolkit.support
           import home_gateway_toolkit.inject, home_gateway_toolkit.probe, home_gateway_toolkit.ssh
           import home_gateway_toolkit.transfer, home_gateway_toolkit.verify, home_gateway_toolkit.wanwatch
+          import home_gateway_toolkit.drivers, home_gateway_toolkit.drivers.nexxt
+          import home_gateway_toolkit.drivers.openwrt, home_gateway_toolkit.drivers.vcnt_i
+          import home_gateway_toolkit.simulator, home_gateway_toolkit.wizard, home_gateway_toolkit.tui
           print('imports OK')"

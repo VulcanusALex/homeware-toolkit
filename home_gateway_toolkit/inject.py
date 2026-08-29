@@ -122,7 +122,8 @@ class Injector:
         result = compat.match_fingerprint(
             board=str(info.get("hw_version", "")),
             model=str(info.get("model", "")),
-            product=str(info.get("model", "")),
+            product=str(info.get("product_name",
+                                 info.get("model", ""))),
             firmware=str(info.get("fw_version", "")))
         if result.status == compat.STATUS_UNKNOWN:
             haystack = " ".join(str(info.get(k, "")) for k in

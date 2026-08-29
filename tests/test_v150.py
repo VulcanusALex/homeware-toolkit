@@ -105,7 +105,7 @@ class DoctorNatSemantics(unittest.TestCase):
     def test_private_wan_is_informational_not_blocked(self):
         probe = {"analysis": {"compatibility_signal": "strong-front-end-match"}}
         with (mock.patch.object(doctor.probe_mod, "run_probe", return_value=probe),
-              mock.patch.object(doctor, "NexxtClient", self.Client),
+              mock.patch.object(doctor, "GatewayClient", self.Client),
               mock.patch.object(doctor, "ssh_run", side_effect=[
                   self.Proc("OK\n"), self.Proc("inet 10.64.23.145/22\n")])):
             stages, code = doctor.run_doctor("https://192.168.1.254", 2222,

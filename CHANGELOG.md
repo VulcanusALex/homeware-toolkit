@@ -14,20 +14,49 @@ Format follows [Keep a Changelog](https://keepachangelog.com/), versioning is se
   inheritance from NeXXt defaults.
 - Third speculative driver (`vcnt_i`) for Vodafone UK Technicolor VCNT-I /
   VBNT-6, plus a community hardware-testing program.
-- Multi-profile simulator: `FakeGateway` accepts a `profile` parameter to
-  exercise different board/firmware fingerprints without hardware.
+- Multi-profile simulator: `FakeGateway` accepts a `profile` parameter and the
+  CLI grows `simulate --profile {nexxt,generic_homeware}` to exercise different
+  board/firmware fingerprints without hardware.
 - Local web setup wizard: `home-gateway setup --wizard` serves a browser-based guide
   on `127.0.0.1` for probe → login → verify → SSH bootstrap.
 - Installer build script (`tools/build_installer.py`) producing `home_gateway.pyz`,
   a macOS `.app` zip, and a Windows PyInstaller spec.
-- Home Assistant HACS custom component skeleton under `homeassistant/`.
+- Home Assistant HACS custom component skeleton under `custom_components/`,
+  including a `home_gateway_toolkit.run_command` service.
 
 ### Changed
+- **Project renamed** from `nexxt-one-toolkit` to `home-gateway-toolkit`:
+  Python package `home_gateway_toolkit`, CLI command `home-gateway`, Home
+  Assistant domain `home_gateway_toolkit`.  `nexxt` survives only as the
+  internal driver name for the NeXXt One device family.
 - `client.py`, `inject.py`, `firewall.py`, `ssh.py`, and `wanwatch.py` now
   consume device capabilities for API paths, injection parameters, firewall
   backend, SSH service/instance/shell, and WAN interface names.
+- `verify.py` and `doctor.py` now read the payload prefix, `${IFS}`
+  substitute, injection service and WAN interface from the detected device
+  instead of hard-coding the NeXXt One values.
 - `compat.json` is now loaded via `importlib.resources` so the zipapp
   (`.pyz`) release artifact works without extracting package data.
+
+### Fixed
+- Release zipapp and PyInstaller builds now bundle `compat.json` and the
+  `drivers/` subpackage (both were missing, crashing the artifacts at import
+  time); the wheel now includes `drivers/` as well.
+- Windows PyInstaller spec uses project-root-relative paths and includes the
+  package data, so it can actually build on a Windows runner.
+- Wizard API endpoints return proper HTTP status codes and JSON error
+  payloads instead of `0`/`1`, and the setup step no longer blocks the
+  single-threaded server on an invisible terminal `[y/N]` prompt.
+- Fingerprint detection now uses the sysinfo `product_name` field (falling
+  back to `model`), so devices matched only by `product_contains` are
+  recognized correctly.
+- Device detection routes through the driver registry, so driver-module
+  capability overlays are actually applied at runtime.
+- `compat.json`: corrected the Vodafone model prefix `VANT-6` → `VBNT-6`.
+- `--adopt-legacy` also migrates the pre-rename on-device state directory
+  `/etc/nexxt-toolkit` to `/etc/home-gateway-toolkit`.
+- Wizard: the final SSH command display no longer shows a literal `\n`.
+- Removed the dead `_M_SIXRD` marker constant in `wanwatch.py`.
 
 ### Fixed
 - Simulator fidelity, checked against real FW_058 hardware: every `nvget`

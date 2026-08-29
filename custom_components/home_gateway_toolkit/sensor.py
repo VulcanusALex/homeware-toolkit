@@ -20,15 +20,15 @@ async def async_setup_entry(
     coordinator = hass.data[DOMAIN][config_entry.entry_id][COORDINATOR]
     async_add_entities(
         [
-            NexxtSensor(coordinator, "gateway", "Gateway"),
-            NexxtSensor(coordinator, "wan_ipv4", "WAN IPv4"),
-            NexxtSensor(coordinator, "wan_mode", "WAN Mode"),
+            HomeGatewaySensor(coordinator, "gateway", "Gateway"),
+            HomeGatewaySensor(coordinator, "wan_ipv4", "WAN IPv4"),
+            HomeGatewaySensor(coordinator, "wan_mode", "WAN Mode"),
         ]
     )
 
 
-class NexxtSensor(CoordinatorEntity, SensorEntity):
-    """Representation of a nexxt sensor."""
+class HomeGatewaySensor(CoordinatorEntity, SensorEntity):
+    """Representation of a home-gateway sensor."""
 
     _attr_has_entity_name = True
 

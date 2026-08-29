@@ -31,7 +31,7 @@ import sys
 import time
 
 from . import __version__
-from .client import DEFAULT_BASE_URL, NexxtClient, SessionExpired
+from .client import DEFAULT_BASE_URL, GatewayClient, SessionExpired
 from .driver import detect_from_sysinfo
 from .inject import Injector
 from .ssh import host_of
@@ -229,6 +229,9 @@ def build_parser() -> argparse.ArgumentParser:
                        help="scale sleep durations (e.g. 0.1 = 10x faster)")
     p_sim.add_argument("--auto-press-delay", type=float, default=2.0,
                        help="seconds until the virtual button press lands")
+    p_sim.add_argument("--profile", default="nexxt",
+                       choices=["nexxt", "generic_homeware"],
+                       help="device profile to emulate")
     return p
 
 
@@ -237,11 +240,11 @@ def main(argv: list[str] | None = None) -> int:
     rep = Reporter(args.json, args.quiet)
     log = rep.log
 
-    def make_client() -> NexxtClient:
-        return NexxtClient(args.base_url,
+    def make_client() -> GatewayClient:
+        return GatewayClient(args.base_url,
                            tls_fingerprint=args.tls_fingerprint)
 
-    def detect_device(client: NexxtClient):
+    def detect_device(client: GatewayClient):
         """Match the connected gateway against compat.json."""
         status, data = client.get("sysinfo")
         info = data.get("sysinfo", {}) if status == 200 else {}
@@ -292,7 +295,7 @@ def main(argv: list[str] | None = None) -> int:
                 fp = fetch_tls_fingerprint(args.base_url)
                 if not args.json:
                     print(f"certificate SHA-256 fingerprint: {fp}")
-                    print("pin it with: nexxt --tls-fingerprint "
+                    print("pin it with: home-gateway --tls-fingerprint "
                           f"{fp} <command>")
                 return rep.out({"tls_fingerprint": fp})
             if args.session_cmd == "login":
@@ -535,13 +538,17 @@ def main(argv: list[str] | None = None) -> int:
                                              refresh=args.refresh))
 
         if args.command == "simulate":
-            from .simulator import FakeGateway
-            gateway = FakeGateway(time_scale=args.time_scale,
-                                  auto_press_delay=args.auto_press_delay)
+            from . import simulator
+            profile = {"nexxt": simulator.NEXXT_PROFILE,
+                       "generic_homeware": simulator.GENERIC_HOMEWARE_PROFILE,
+                       }[args.profile]
+            gateway = simulator.FakeGateway(time_scale=args.time_scale,
+                                            auto_press_delay=args.auto_press_delay,
+                                            profile=profile)
             gateway.start()
-            print(f"[simulate] fake NeXXt One listening on "
+            print(f"[simulate] fake {profile.name} listening on "
                   f"{gateway.base_url} (Ctrl-C to stop)")
-            print(f"[simulate] try: nexxt --base-url {gateway.base_url} "
+            print(f"[simulate] try: home-gateway --base-url {gateway.base_url} "
                   "probe")
             try:
                 while True:

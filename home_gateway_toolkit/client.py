@@ -140,7 +140,7 @@ class SessionExpired(RuntimeError):
     pass
 
 
-class NexxtClient:
+class GatewayClient:
     def __init__(self, base_url: str = DEFAULT_BASE_URL, timeout: float = 5.0,
                  work_dir: str = ".work",
                  tls_fingerprint: str | None = None,

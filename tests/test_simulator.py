@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 from home_gateway_toolkit import inject as inject_mod  # noqa: E402
 from home_gateway_toolkit import probe, transfer, verify as verify_mod  # noqa: E402
-from home_gateway_toolkit.client import NexxtClient  # noqa: E402
+from home_gateway_toolkit.client import GatewayClient  # noqa: E402
 from home_gateway_toolkit.driver import detect_from_sysinfo  # noqa: E402
 from home_gateway_toolkit.inject import Injector, UnknownDeviceError  # noqa: E402
 from home_gateway_toolkit.simulator import (  # noqa: E402
@@ -54,7 +54,7 @@ class GatewayCase(unittest.TestCase):
         self.gateway = FakeGateway(**self.gateway_kwargs)
         self.gateway.start()
         self.tmp = tempfile.TemporaryDirectory()
-        self.client = NexxtClient(self.gateway.base_url, timeout=5.0,
+        self.client = GatewayClient(self.gateway.base_url, timeout=5.0,
                                   work_dir=self.tmp.name)
 
     def tearDown(self):
@@ -287,13 +287,13 @@ class MultiProfileSimulator(unittest.TestCase):
             self.assertEqual(
                 result["analysis"]["compatibility_signal"], "strong-front-end-match")
             # Board/model/firmware come from the profile.
-            client = NexxtClient(gateway.base_url)
+            client = GatewayClient(gateway.base_url)
             client.button_login(60, log=SILENT)
             status, data = client.get("sysinfo")
             self.assertEqual(status, 200)
             sysinfo = data["sysinfo"]
             self.assertEqual(sysinfo["hw_version"], "VCNT-I")
-            self.assertEqual(sysinfo["model"], "VANT-6")
+            self.assertEqual(sysinfo["model"], "VBNT-6")
             self.assertIn("VCNTI", sysinfo["fw_version"])
             # The fingerprint should map to the vcnt_i driver.
             device = detect_from_sysinfo(sysinfo)

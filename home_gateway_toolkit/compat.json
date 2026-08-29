@@ -46,7 +46,7 @@
     },
     {
       "board": "VCNT-I",
-      "model_prefix": "VANT-6",
+      "model_prefix": "VBNT-6",
       "product_contains": "Vodafone",
       "known_firmware": [],
       "status": "untested",

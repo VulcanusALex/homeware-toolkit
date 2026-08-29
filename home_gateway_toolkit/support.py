@@ -11,7 +11,7 @@ import re
 import zipfile
 
 from . import __version__
-from .client import NexxtClient
+from .client import GatewayClient
 from .doctor import run_doctor
 from .probe import run_probe
 
@@ -66,7 +66,7 @@ def build_report(base_url: str, port: int = 2222, key: str | None = None) -> dic
             "Review the report before sharing it publicly.",
         ],
     }
-    client = NexxtClient(base_url)
+    client = GatewayClient(base_url)
     if client.is_authenticated():
         status, data = client.get("sysinfo")
         raw = data.get("sysinfo", {}) if status == 200 else {}

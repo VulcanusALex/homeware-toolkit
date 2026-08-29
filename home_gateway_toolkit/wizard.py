@@ -22,7 +22,7 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 from . import __version__
-from .client import NexxtClient
+from .client import GatewayClient
 from .driver import default_device, detect_from_sysinfo
 
 WIZARD_HTML = """<!doctype html>
@@ -180,7 +180,9 @@ async function doSetup() {
 
 function finish() {
   show('step-done');
-  $('done-cmd').textContent = 'ssh -i ~/.home-gateway-toolkit/id_rsa -p 2222 \\\\n  -o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedKeyTypes=+ssh-rsa \\\\n  root@' + window.location.hostname.replace(/:$/, '');
+  $('done-cmd').textContent = 'ssh -i ~/.home-gateway-toolkit/id_rsa -p 2222 ' +
+    '-o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedKeyTypes=+ssh-rsa ' +
+    'root@' + window.location.hostname.replace(/:$/, '');
 }
 </script>
 </body>
@@ -198,13 +200,13 @@ class WizardState:
         self.tls_fingerprint = tls_fingerprint
         self.key_path = os.path.expanduser(key_path)
         self.port = port
-        self.client: NexxtClient | None = None
+        self.client: GatewayClient | None = None
         self._lock = threading.Lock()
 
-    def get_client(self) -> NexxtClient:
+    def get_client(self) -> GatewayClient:
         with self._lock:
             if self.client is None:
-                self.client = NexxtClient(
+                self.client = GatewayClient(
                     self.base_url, tls_fingerprint=self.tls_fingerprint)
             return self.client
 
@@ -276,7 +278,7 @@ def make_handler(state: WizardState):
             if path == "/api/session/login":
                 client = state.get_client()
                 ok = client.button_login(60, log=lambda _m: None)
-                _json_response(self, {"authenticated": ok}, 0 if ok else 1)
+                _json_response(self, {"authenticated": ok})
                 return
 
             if path == "/api/verify":
@@ -285,17 +287,23 @@ def make_handler(state: WizardState):
                 client = state.get_client()
                 inj = Injector(client, log=lambda _m: None)
                 report = verify_mod.verify(inj, log=lambda _m: None)
-                code = 0 if report["backend_command_execution"] else 1
-                _json_response(self, report, code)
+                _json_response(self, report)
                 return
 
             if path == "/api/setup":
                 from .setup import run_setup
-                result, code = run_setup(
-                    state.base_url, state.port, state.key_path,
-                    assume_yes=False, force=False, adopt_legacy=False,
-                    log=lambda _m: None)
-                _json_response(self, {"result": result, "code": code}, code)
+                # The wizard UI itself is the explicit consent, so run_setup
+                # must not block on a terminal prompt.  Failures are reported
+                # in the JSON payload (code != 0) so the browser can render
+                # them gracefully.
+                try:
+                    result, code = run_setup(
+                        state.base_url, state.port, state.key_path,
+                        assume_yes=True, force=False, adopt_legacy=False,
+                        log=lambda _m: None)
+                    _json_response(self, {"result": result, "code": code})
+                except Exception as exc:
+                    _json_response(self, {"result": str(exc), "code": 1})
                 return
 
             self.send_error(404)

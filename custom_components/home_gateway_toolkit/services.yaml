@@ -1,6 +1,6 @@
 run_command:
-  name: Run nexxt command
-  description: Run a nexxt CLI subcommand on the configured gateway.
+  name: Run home-gateway command
+  description: Run a home-gateway CLI subcommand on the configured gateway.
   fields:
     command:
       name: Command

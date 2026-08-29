@@ -14,6 +14,10 @@ from .inject import I
 
 INSTANCE = "nx"
 STATE_DIR = "/etc/home-gateway-toolkit"
+# State directory used by releases before the project was renamed
+# (nexxt-one-toolkit <= 1.5.x).  Adopted/migrated on demand by
+# ``_prepare_state(adopt_legacy=True)``.
+LEGACY_STATE_DIR = "/etc/nexxt-toolkit"
 ROOT_RECORD = f"{STATE_DIR}/root.passwd.before"
 KEY_RECORD = f"{STATE_DIR}/authorized_key"
 OWNER_MARKER = f"{STATE_DIR}/dropbear.{INSTANCE}.owned"
@@ -124,8 +128,9 @@ def _prepare_state(inj, adopt_legacy: bool = False,
     """Create persistent ownership records before changing device state.
 
     v1.4.0 and older did not leave a persistent ownership marker and kept the
-    passwd backup in /tmp.  Refuse to guess unless the operator explicitly
-    opts into adopting such an installation.
+    passwd backup in /tmp; v1.5.x and older used the pre-rename state
+    directory ``/etc/nexxt-toolkit``.  Refuse to guess unless the operator
+    explicitly opts into adopting such an installation.
     """
     original_shell = _validate_original_shell(
         _ssh_original_shell(inj, fallback=original_shell))
@@ -141,9 +146,17 @@ def _prepare_state(inj, adopt_legacy: bool = False,
 
     if (has_instance or shell_is_ash) and not owned and not adopt_legacy:
         raise RuntimeError(
-            "existing SSH/root-shell changes have no nexxt-toolkit ownership "
-            "record; refusing to overwrite them. If they were created by "
-            "home-gateway-toolkit <=1.4.0, re-run with --adopt-legacy")
+            "existing SSH/root-shell changes have no home-gateway-toolkit ownership "
+            "record; refusing to overwrite them. If they were created by an "
+            "older release of this toolkit, re-run with --adopt-legacy")
+
+    # Migrate the pre-rename state directory (nexxt-one-toolkit <= 1.5.x) so
+    # teardown and audit keep finding the ownership records.
+    if adopt_legacy and not owned and not inj.dry_run:
+        if inj.ask(f"test{I}-d{I}{LEGACY_STATE_DIR}") and not inj.ask(
+                f"test{I}-d{I}{STATE_DIR}"):
+            inj.do(f"mv{I}{LEGACY_STATE_DIR}{I}{STATE_DIR}")
+            owned = inj.ask(f"test{I}-f{I}{owner_marker}")
 
     inj.do(f"mkdir{I}-p{I}{STATE_DIR}")
     inj.do(f"chmod{I}700{I}{STATE_DIR}")

@@ -66,9 +66,12 @@ def build_pyz(version: str) -> Path:
     src_pkg = PROJECT_ROOT / "home_gateway_toolkit"
     for item in src_pkg.iterdir():
         if item.is_file():
+            if item.suffix == ".pyc":
+                continue
             shutil.copy2(item, build_pkg)
         elif item.is_dir() and item.name != "__pycache__":
-            shutil.copytree(item, build_pkg / item.name)
+            shutil.copytree(item, build_pkg / item.name,
+                            ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
 
     # Entry point shim.
     main_py = BUILD_DIR / "__main__.py"
@@ -101,7 +104,7 @@ def build_macos_app(version: str, pyz: Path) -> Path | None:
     spec_dir.mkdir(parents=True, exist_ok=True)
 
     # PyInstaller needs a real Python script entry point, not a .pyz.
-    entry = spec_dir / "nexxt_entry.py"
+    entry = spec_dir / "home_gateway_entry.py"
     entry.write_text(
         "# Auto-generated entry point for PyInstaller\n"
         "from home_gateway_toolkit.cli import main\n"
@@ -113,11 +116,14 @@ def build_macos_app(version: str, pyz: Path) -> Path | None:
     if dist_app.exists():
         shutil.rmtree(dist_app)
 
+    data_sep = ":"
     _run([
         sys.executable, "-m", "PyInstaller",
         "--name", app_name,
         "--onedir",          # .app bundles must be directories on macOS
         "--windowed",
+        "--add-data", f"{PROJECT_ROOT / 'home_gateway_toolkit' / 'compat.json'}{data_sep}home_gateway_toolkit",
+        "--add-data", f"{PROJECT_ROOT / 'home_gateway_toolkit' / 'drivers'}{data_sep}home_gateway_toolkit/drivers",
         "--distpath", str(DIST_DIR),
         "--workpath", str(spec_dir / "work"),
         "--specpath", str(spec_dir),
@@ -145,7 +151,7 @@ def build_macos_app(version: str, pyz: Path) -> Path | None:
 def write_windows_spec(version: str) -> Path:
     """Generate a PyInstaller spec file for Windows builds."""
     spec = DIST_DIR / f"home-gateway-toolkit-{version}-win64.spec"
-    entry = BUILD_DIR / "pyinstaller" / "nexxt_entry.py"
+    entry = BUILD_DIR / "pyinstaller" / "home_gateway_entry.py"
     entry.parent.mkdir(parents=True, exist_ok=True)
     entry.write_text(
         "# Auto-generated entry point for PyInstaller\n"
@@ -153,15 +159,20 @@ def write_windows_spec(version: str) -> Path:
         "import sys\n"
         "sys.exit(main())\n"
     )
+    # Use paths relative to the project root so the spec can run on any machine.
+    rel_entry = entry.relative_to(PROJECT_ROOT).as_posix()
     spec_content = f'''# -*- mode: python ; coding: utf-8 -*-
 # PyInstaller spec for home-gateway-toolkit v{version}
-# Build on Windows with: pyinstaller "{spec.name}"
+# Build on Windows from the project root with: pyinstaller "{spec.name}"
 
 a = Analysis(
-    [{entry.as_posix()!r}],
-    pathexx=[{PROJECT_ROOT.as_posix()!r}],
+    [r"{rel_entry}"],
+    pathex=[r"."],
     binaries=[],
-    datas=[],
+    datas=[
+        (r"home_gateway_toolkit/compat.json", "home_gateway_toolkit"),
+        (r"home_gateway_toolkit/drivers", "home_gateway_toolkit/drivers"),
+    ],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={{}},

@@ -4,13 +4,15 @@
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![python: 3.9+](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org)
 
-Open-source toolkit for the **Fastweb NeXXt One** residential gateway
-(Technicolor/Vantiva **FGA221D**, board **GDNT-S**, firmware branch `22.2.0378`),
-covering compatibility probing, a non-destructive verification of the ping
-diagnostic command-injection issue, reliable file transfer over that channel,
-bootstrapping a **persistent key-only SSH service**, observing real inbound
-traffic, auditing firewall/upgrade state, and producing sanitized support
-bundles on a device **you own**.
+Open-source toolkit for **residential gateways**. Born on the Fastweb
+**NeXXt One** (Technicolor/Vantiva **FGA221D**, board **GDNT-S**, firmware
+branch `22.2.0378`), it now extends to other home gateway families through a
+small device-profile and driver system. It covers compatibility probing, a
+non-destructive verification of the ping diagnostic command-injection issue,
+reliable file transfer over that channel, bootstrapping a **persistent
+key-only SSH service**, observing real inbound traffic, auditing
+firewall/upgrade state, and producing sanitized support bundles on a device
+**you own**.
 
 Everything is pure **Python 3.9+ stdlib** — no dependencies to install.
 

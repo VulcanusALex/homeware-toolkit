@@ -16,7 +16,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Compile everything
-        run: python -m py_compile home_gateway_toolkit/*.py tools/*.py nexxt
+        run: python -m py_compile home_gateway_toolkit/*.py tools/*.py home-gateway
       - name: Unit tests
         run: python -m unittest discover -s tests -v
       - name: CLI smoke tests

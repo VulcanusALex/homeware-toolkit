@@ -33,7 +33,7 @@ jobs:
           chmod +x release-assets/home_gateway.pyz
           cp dist/* release-assets/
           cd release-assets
-          sha256sum nexxt* > SHA256SUMS
+          sha256sum * > SHA256SUMS
       - name: Upload GitHub Release assets
         env:
           GH_TOKEN: ${{ github.token }}

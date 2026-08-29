@@ -19,8 +19,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 from nexxt_toolkit import inject as inject_mod  # noqa: E402
 from nexxt_toolkit import probe, transfer, verify as verify_mod  # noqa: E402
 from nexxt_toolkit.client import NexxtClient  # noqa: E402
+from nexxt_toolkit.driver import detect_from_sysinfo  # noqa: E402
 from nexxt_toolkit.inject import Injector, UnknownDeviceError  # noqa: E402
-from nexxt_toolkit.simulator import FakeGateway, VirtualShell  # noqa: E402
+from nexxt_toolkit.simulator import (  # noqa: E402
+    FakeGateway, GENERIC_HOMEWARE_PROFILE, VirtualShell)
 
 SILENT = lambda *args: None  # noqa: E731
 
@@ -273,6 +275,32 @@ class FingerprintGuard(GatewayCase):
         with _fast_poll(inject_mod):
             inj = Injector(self.client, force=True, log=SILENT)
         self.assertGreaterEqual(inj.base, 0.0)
+
+
+class MultiProfileSimulator(unittest.TestCase):
+    def test_generic_homeware_profile_is_detected(self):
+        gateway = FakeGateway(profile=GENERIC_HOMEWARE_PROFILE,
+                              auto_press_delay=0.5)
+        gateway.start()
+        try:
+            result = probe.run_probe(gateway.base_url)
+            self.assertEqual(
+                result["analysis"]["compatibility_signal"], "strong-front-end-match")
+            # Board/model/firmware come from the profile.
+            client = NexxtClient(gateway.base_url)
+            client.button_login(60, log=SILENT)
+            status, data = client.get("sysinfo")
+            self.assertEqual(status, 200)
+            sysinfo = data["sysinfo"]
+            self.assertEqual(sysinfo["hw_version"], "VCNT-I")
+            self.assertEqual(sysinfo["model"], "VANT-6")
+            self.assertIn("VCNTI", sysinfo["fw_version"])
+            # The fingerprint should map to the vcnt_i driver.
+            device = detect_from_sysinfo(sysinfo)
+            self.assertEqual(device.name, "vcnt_i")
+            self.assertEqual(device.cap("wan", "wan4_interface"), "eth4")
+        finally:
+            gateway.stop()
 
 
 if __name__ == "__main__":

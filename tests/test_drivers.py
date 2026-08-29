@@ -24,6 +24,15 @@ class DriverRegistryTest(unittest.TestCase):
         self.assertEqual(dev.cap("injection", "service"), "pingstatus")
         self.assertEqual(dev.cap("firewall", "backend"), "uci")
 
+    def test_vcnt_i_driver_is_registered(self):
+        factory = drivers.get("vcnt_i")
+        dev = factory(None)
+        self.assertEqual(dev.name, "vcnt_i")
+        self.assertEqual(dev.cap("auth", "method"), "srp6")
+        self.assertEqual(dev.cap("wan", "wan4_interface"), "eth4")
+        # Inherits NeXXt defaults where not overridden.
+        self.assertEqual(dev.cap("injection", "service"), "pingstatus")
+
     def test_unknown_driver_falls_back_to_nexxt(self):
         factory = drivers.get("does_not_exist")
         dev = factory(None)

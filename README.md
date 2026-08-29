@@ -139,6 +139,15 @@ fingerprint in `compat.json` selects a driver under `nexxt_toolkit/drivers/`
 and supplies per-device capabilities, making it possible to support additional
 gateway families without rewriting the CLI.
 
+## Expanding device support
+
+We are looking for hardware volunteers to test speculative drivers. See
+[docs/hardware-testing.md](docs/hardware-testing.md) and open a
+*Hardware testing call* issue if you own a candidate device.
+
+Current speculative targets include Vodafone UK Technicolor VCNT-I/VBNT-6
+(`vcnt_i` driver) and generic OpenWrt routers (`openwrt` driver).
+
 Docs:
 
 - [docs/quickstart.md](docs/quickstart.md) — step-by-step illustrated quickstart (EN, start here)

@@ -12,6 +12,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/), versioning is se
   hard-coding NeXXt One values.
 - Second driver (`openwrt`) demonstrating multi-device support and capability
   inheritance from NeXXt defaults.
+- Third speculative driver (`vcnt_i`) for Vodafone UK Technicolor VCNT-I /
+  VBNT-6, plus a community hardware-testing program.
+- Multi-profile simulator: `FakeGateway` accepts a `profile` parameter to
+  exercise different board/firmware fingerprints without hardware.
 - Local web setup wizard: `nexxt setup --wizard` serves a browser-based guide
   on `127.0.0.1` for probe → login → verify → SSH bootstrap.
 - Installer build script (`tools/build_installer.py`) producing `nexxt.pyz`,

@@ -39,12 +39,47 @@ import shlex
 import threading
 import time
 import urllib.parse
+from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+@dataclass
+class DeviceProfile:
+    """Configuration for a simulated gateway family.
+
+    The simulator is intentionally still generic (it does not model every
+    quirk of a real device), but profiles let integration tests exercise the
+    toolkit's device-capability dispatch against different board/firmware
+    fingerprints and web-asset signatures.
+    """
+
+    name: str
+    firmware: str
+    board: str
+    model: str
+    product: str
+    asset_stamp: str
+    login_html: str
+    app_js: str
+    shared_services_js: str
+    status_service_js: str
+    default_services: dict = field(default_factory=dict)
+    injection_prefix: str = ":::::::;"
+
+    @property
+    def static_assets(self) -> dict[str, tuple[str, str]]:
+        return {
+            "/app/app.js": ("application/javascript", self.app_js),
+            "/app/services/sharedServices.js": (
+                "application/javascript", self.shared_services_js),
+            "/app/services/statusService.js": (
+                "application/javascript", self.status_service_js),
+        }
+
 
 DEFAULT_FIRMWARE = "22.2.0378_FW_058_FGA221D"
 ASSET_STAMP = "20260515082010"
 
-LOGIN_HTML = f"""<!doctype html>
+_NEXXT_LOGIN_HTML = f"""<!doctype html>
 <html><head><title>NeXXt One</title>
 <script src="/app/app.js?v={ASSET_STAMP}"></script>
 <script src="/app/services/sharedServices.js?v={ASSET_STAMP}"></script>
@@ -52,7 +87,7 @@ LOGIN_HTML = f"""<!doctype html>
 </head><body><div ng-app="nexxt"></div></body></html>
 """
 
-APP_JS = """'use strict';
+_NEXXT_APP_JS = """'use strict';
 var app = angular.module('nexxt', []);
 app.factory('validators', function () {
     const ipv6 = /([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}/gi.test(value);
@@ -60,7 +95,7 @@ app.factory('validators', function () {
 });
 """
 
-SHARED_SERVICES_JS = """'use strict';
+_NEXXT_SHARED_SERVICES_JS = """'use strict';
 app.service('api', function ($http) {
     $http.defaults.headers.post['apiServiceUrl', '/status.cgi'] = true;
     var apiServiceUrl = '/status.cgi'; // apiServiceUrl', '/status.cgi'
@@ -69,7 +104,7 @@ app.service('api', function ($http) {
 });
 """
 
-STATUS_SERVICE_JS = """'use strict';
+_NEXXT_STATUS_SERVICE_JS = """'use strict';
 app.service('statusService', function (api) {
     this.startPing = function (data) {
         return api.set('pingstatus', data);
@@ -80,24 +115,76 @@ app.service('statusService', function (api) {
 });
 """
 
-STATIC_ASSETS = {
-    "/app/app.js": ("application/javascript", APP_JS),
-    "/app/services/sharedServices.js": ("application/javascript", SHARED_SERVICES_JS),
-    "/app/services/statusService.js": ("application/javascript", STATUS_SERVICE_JS),
-}
+NEXXT_PROFILE = DeviceProfile(
+    name="nexxt",
+    firmware=DEFAULT_FIRMWARE,
+    board="GDNT-S",
+    model="FGA221D",
+    product="NeXXt",
+    asset_stamp=ASSET_STAMP,
+    login_html=_NEXXT_LOGIN_HTML,
+    app_js=_NEXXT_APP_JS,
+    shared_services_js=_NEXXT_SHARED_SERVICES_JS,
+    status_service_js=_NEXXT_STATUS_SERVICE_JS,
+    default_services={
+        "wanstatusinfo": {"WanConnectionStatus": "Connected"},
+        "wwanstatusinfo": {},
+        "lan_status": {"LanUp": "1"},
+        "laninfo": {"IPAddress": "192.168.1.254"},
+        "lanipv6details": {},
+        "firewall_conf": {"level": "medium"},
+        "dmz_conf": {},
+        "virtual_server_list": {},
+        "upnp_conf": {},
+    },
+)
 
-# Read-only nvget services served from the state dict.
-DEFAULT_SERVICES = {
-    "wanstatusinfo": {"WanConnectionStatus": "Connected"},
-    "wwanstatusinfo": {},
-    "lan_status": {"LanUp": "1"},
-    "laninfo": {"IPAddress": "192.168.1.254"},
-    "lanipv6details": {},
-    "firewall_conf": {"level": "medium"},
-    "dmz_conf": {},
-    "virtual_server_list": {},
-    "upnp_conf": {},
-}
+# Generic Homeware profile: same web API shape, different board/firmware.
+# Used to exercise the driver-dispatch path without a real second device.
+_GENERIC_HOMEWARE_ASSET_STAMP = "20260401000000"
+_GENERIC_HOMEWARE_LOGIN_HTML = f"""<!doctype html>
+<html><head><title>Homeware Gateway</title>
+<script src="/app/app.js?v={_GENERIC_HOMEWARE_ASSET_STAMP}"></script>
+<script src="/app/services/sharedServices.js?v={_GENERIC_HOMEWARE_ASSET_STAMP}"></script>
+<script src="/app/services/statusService.js?v={_GENERIC_HOMEWARE_ASSET_STAMP}"></script>
+</head><body><div ng-app="homeware"></div></body></html>
+"""
+
+_GENERIC_HOMEWARE_APP_JS = """'use strict';
+var app = angular.module('homeware', []);
+app.factory('validators', function () {
+    const ipv6 = /([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}/gi.test(value);
+    return {ipv6: ipv6};
+});
+"""
+
+GENERIC_HOMEWARE_PROFILE = DeviceProfile(
+    name="generic_homeware",
+    firmware="22.2.0378_FW_058_VCNTI",
+    board="VCNT-I",
+    model="VANT-6",
+    product="Vodafone",
+    asset_stamp=_GENERIC_HOMEWARE_ASSET_STAMP,
+    login_html=_GENERIC_HOMEWARE_LOGIN_HTML,
+    app_js=_GENERIC_HOMEWARE_APP_JS,
+    shared_services_js=_NEXXT_SHARED_SERVICES_JS,
+    status_service_js=_NEXXT_STATUS_SERVICE_JS,
+    default_services={
+        "wanstatusinfo": {"WanConnectionStatus": "Connected"},
+        "wwanstatusinfo": {},
+        "lan_status": {"LanUp": "1"},
+        "laninfo": {"IPAddress": "192.168.1.254"},
+        "lanipv6details": {},
+        "firewall_conf": {"level": "medium"},
+        "dmz_conf": {},
+        "virtual_server_list": {},
+        "upnp_conf": {},
+    },
+)
+
+# Backwards-compatible module-level defaults.
+STATIC_ASSETS = NEXXT_PROFILE.static_assets
+DEFAULT_SERVICES = NEXXT_PROFILE.default_services
 
 
 class ShellError(Exception):
@@ -450,14 +537,16 @@ class VirtualShell:
 class FakeGateway:
     """Threaded in-process fake of the NeXXt One web stack."""
 
-    def __init__(self, board: str = "GDNT-S", model: str = "FGA221D",
-                 product: str = "NeXXt", fw_version: str = DEFAULT_FIRMWARE,
+    def __init__(self, board: str | None = None, model: str | None = None,
+                 product: str | None = None, fw_version: str | None = None,
                  session_ttl: float = 300.0, time_scale: float = 1.0,
-                 auto_press_delay: float | None = None) -> None:
-        self.board = board
-        self.model = model
-        self.product = product
-        self.fw_version = fw_version
+                 auto_press_delay: float | None = None,
+                 profile: DeviceProfile | None = None) -> None:
+        self.profile = profile or NEXXT_PROFILE
+        self.board = board or self.profile.board
+        self.model = model or self.profile.model
+        self.product = product or self.profile.product
+        self.fw_version = fw_version or self.profile.firmware
         self.session_ttl = session_ttl
         self.auto_press_delay = auto_press_delay
         self.shell = VirtualShell(time_scale=time_scale)
@@ -569,7 +658,12 @@ class FakeGateway:
                 with self._lock:
                     self._diag_state = "InProgress"
                 status = 0
-                if ";" in host:
+                prefix = self.profile.injection_prefix
+                if prefix in host:
+                    command = host.split(prefix, 1)[1]
+                    status = self.shell.run(command)
+                elif ";" in host:
+                    # Fallback for tests that bypass the configured prefix.
                     command = host.split(";", 1)[1]
                     status = self.shell.run(command)
                 else:
@@ -621,7 +715,7 @@ class FakeGateway:
                 "hw_version": self.board,
                 "fw_version": self.fw_version,
                 "uptime": "3600"}}
-        data = DEFAULT_SERVICES.get(service)
+        data = self.profile.default_services.get(service)
         if data is not None:
             return 200, {service: dict(data)}
         return 200, {}
@@ -681,11 +775,12 @@ class _GatewayHandler(BaseHTTPRequestHandler):
 
         if path == "/login":
             sid = self.fake._new_session()
-            self._send(200, LOGIN_HTML.encode(), "text/html",
+            self._send(200, self.fake.profile.login_html.encode(), "text/html",
                        {"Set-Cookie": f"sessionID={sid}; Path=/"})
             return
-        if path in STATIC_ASSETS:
-            content_type, body = STATIC_ASSETS[path]
+        assets = self.fake.profile.static_assets
+        if path in assets:
+            content_type, body = assets[path]
             self._send(200, body.encode(), content_type,
                        {"Last-Modified": "Wed, 15 May 2026 08:20:10 GMT"})
             return

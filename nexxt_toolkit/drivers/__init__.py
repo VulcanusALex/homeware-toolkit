@@ -17,12 +17,14 @@ from typing import Callable, Optional
 from ..driver import Device
 from . import nexxt as _nexxt
 from . import openwrt as _openwrt
+from . import vcnt_i as _vcnt_i
 
 _DriverFactory = Callable[[Optional[dict]], Device]
 
 _REGISTRY: dict[str, _DriverFactory] = {
     "nexxt": _nexxt.make_device,
     "openwrt": _openwrt.make_device,
+    "vcnt_i": _vcnt_i.make_device,
 }
 
 

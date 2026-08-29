@@ -28,15 +28,31 @@ _M_WAN6 = "__NX_WAN6__"
 _M_IP4 = "__NX_IP4__"
 _M_IP6 = "__NX_IP6__"
 
-REMOTE_COMMAND = (
-    "ifstatus 6rd 2>/dev/null; "
-    f"echo {_M_WAN6}; "
-    "ifstatus wan6 2>/dev/null; "
-    f"echo {_M_IP4}; "
-    "ip -4 addr show dev veip0_1 2>/dev/null; "
-    f"echo {_M_IP6}; "
-    "ip -6 addr show dev br-lan 2>/dev/null"
-)
+DEFAULT_WAN_INTERFACES = {
+    "wan4_interface": "veip0_1",
+    "lan6_interface": "br-lan",
+}
+
+
+def _remote_command(interfaces: dict | None = None) -> str:
+    """Build the remote probe command for the given interface names.
+
+    ``interfaces`` may contain ``wan4_interface`` and ``lan6_interface`` keys;
+    missing keys fall back to the NeXXt One defaults so callers without a
+    device still work.
+    """
+    iface = dict(DEFAULT_WAN_INTERFACES)
+    if interfaces:
+        iface.update(interfaces)
+    return (
+        "ifstatus 6rd 2>/dev/null; "
+        f"echo {_M_WAN6}; "
+        "ifstatus wan6 2>/dev/null; "
+        f"echo {_M_IP4}; "
+        f"ip -4 addr show dev {iface['wan4_interface']} 2>/dev/null; "
+        f"echo {_M_IP6}; "
+        f"ip -6 addr show dev {iface['lan6_interface']} 2>/dev/null"
+    )
 
 
 def classify_v4(addr: str) -> str:
@@ -179,13 +195,17 @@ def _notify(title: str, body: str) -> None:
 
 
 def watch(host: str, port: int, key: str, state_file: str,
-          notify: bool = False) -> tuple[dict, int]:
+          notify: bool = False,
+          interfaces: dict | None = None) -> tuple[dict, int]:
     """Snapshot WAN state and compare with the last run.
 
     Returns (report, exit_code): 0 public IPv4, 1 not-yet-public,
     2 provisioning changed, 3 error.
+
+    ``interfaces`` optionally overrides the default WAN/LAN interface names
+    when the toolkit is used with a different device family.
     """
-    proc = ssh_run(host, port, key, REMOTE_COMMAND)
+    proc = ssh_run(host, port, key, _remote_command(interfaces))
     if proc.returncode != 0 or not proc.stdout.strip():
         return {"error": proc.stderr.strip() or "no output"}, 3
 

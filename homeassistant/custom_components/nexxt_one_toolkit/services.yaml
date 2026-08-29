@@ -1,0 +1,10 @@
+run_command:
+  name: Run nexxt command
+  description: Run a nexxt CLI subcommand on the configured gateway.
+  fields:
+    command:
+      name: Command
+      description: Subcommand and arguments, e.g. "doctor --key ~/.nexxt-one-toolkit/id_rsa".
+      required: true
+      selector:
+        text:

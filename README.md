@@ -94,7 +94,7 @@ and [security model](SECURITY.md#hardening-notes-for-users).
 | Command | Purpose |
 |---|---|
 | `nexxt probe` | Unauthenticated, read-only compatibility check (safe first step); `--report` emits a GitHub-issue-ready Markdown report |
-| `nexxt setup` | Guided, transactional path from probe to tested SSH; generates a compatible key locally |
+| `nexxt setup` | Guided, transactional path from probe to tested SSH; generates a compatible key locally; add `--wizard` for a browser UI |
 | `nexxt doctor` | End-to-end health check with per-stage hints |
 | `nexxt session` | Button-assisted login, HAR cookie import, read-only dump, TLS fingerprint for `--tls-fingerprint` pinning |
 | `nexxt verify` | Non-persistent proof of command injection (timing probe + short-lived `/tmp` marker, cleaned up) |
@@ -123,6 +123,21 @@ Firmware compatibility is data-driven via
 issue-ready report for new firmware. The toolkit is developed hardware-free:
 `nexxt simulate` runs a fake gateway that speaks the same web API, button
 login and injection channel.
+
+## Distribution & integrations
+
+- **PyPI / pipx**: `pipx install nexxt-one-toolkit` (recommended).
+- **Standalone zipapp**: download `nexxt.pyz` from GitHub Releases.
+- **macOS app / Windows exe**: build with `python tools/build_installer.py`
+  (requires PyInstaller).
+- **Web setup wizard**: `nexxt setup --wizard` opens a local browser guide.
+- **Home Assistant**: install the HACS custom component from
+  [`homeassistant/`](homeassistant/) (skeleton; polling is planned).
+
+The toolkit is also structured as a small device-driver framework: each
+fingerprint in `compat.json` selects a driver under `nexxt_toolkit/drivers/`
+and supplies per-device capabilities, making it possible to support additional
+gateway families without rewriting the CLI.
 
 Docs:
 

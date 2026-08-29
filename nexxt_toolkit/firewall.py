@@ -7,6 +7,11 @@ import re
 
 from .ssh import ssh_run
 
+# Imported lazily at runtime to avoid a circular import with driver.py.
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from .driver import Device
+
 NAME_RE = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
 SECTION_RE = re.compile(r"^(?:[A-Za-z0-9_-]{1,64}|@(?:rule|redirect)\[\d+\])$")
 
@@ -83,8 +88,21 @@ def _validate_dest_port(dest_port: str) -> str:
 
 
 class FW:
-    def __init__(self, host: str, port: int, key: str) -> None:
+    def __init__(self, host: str, port: int, key: str,
+                 device: "Device" | None = None) -> None:
         self.host, self.port, self.key = host, port, key
+        # Device capabilities select the firewall backend.  Currently only UCI
+        # is implemented; the seam lets future drivers declare nftables/iptables
+        # backends without changing the CLI.
+        if device is None:
+            from .driver import default_device
+            device = default_device()
+        self.device = device
+        backend = self.device.cap("firewall", "backend", default="uci")
+        if backend != "uci":
+            raise RuntimeError(
+                f"unsupported firewall backend {backend!r} for device "
+                f"{self.device.name!r}; only 'uci' is currently implemented")
 
     def run(self, cmd: str) -> str:
         proc = ssh_run(self.host, self.port, self.key, cmd, timeout=60)

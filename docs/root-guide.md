@@ -307,6 +307,14 @@ unlisted firmware (`untested`), and `--force` overrides both.
 run `nexxt probe --report` and paste the generated Markdown into a
 compatibility issue — no redaction needed, it contains only probe data.
 
+As of schema 2, each fingerprint may also declare a `driver` name and a
+`capabilities` object.  The driver selects the device-family implementation
+under `nexxt_toolkit/drivers/`; capabilities override the NeXXt One defaults
+for constants such as the injection payload prefix, firewall backend, SSH
+service name, and WAN interface names.  This lets new devices be supported by
+editing `compat.json` and adding a small driver module, without rewriting the
+CLI or business logic.
+
 ## 14. Hardware-free development (`nexxt simulate`)
 
 `nexxt simulate` starts a fake gateway on `127.0.0.1` that implements the

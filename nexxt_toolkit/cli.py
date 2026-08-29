@@ -32,6 +32,7 @@ import time
 
 from . import __version__
 from .client import DEFAULT_BASE_URL, NexxtClient, SessionExpired
+from .driver import detect_from_sysinfo
 from .inject import Injector
 from .ssh import host_of
 
@@ -80,6 +81,8 @@ def build_parser() -> argparse.ArgumentParser:
                          help="accept the displayed persistent-change step")
     p_setup.add_argument("--adopt-legacy", action="store_true",
                          help="adopt a confirmed <=1.4.0 toolkit installation")
+    p_setup.add_argument("--wizard", action="store_true",
+                         help="open a browser-based setup wizard on localhost")
 
     p_doc = sub.add_parser("doctor", help="end-to-end health check")
     p_doc.add_argument("--key", help="SSH private key (enables SSH/WAN checks)")
@@ -238,6 +241,12 @@ def main(argv: list[str] | None = None) -> int:
         return NexxtClient(args.base_url,
                            tls_fingerprint=args.tls_fingerprint)
 
+    def detect_device(client: NexxtClient):
+        """Match the connected gateway against compat.json."""
+        status, data = client.get("sysinfo")
+        info = data.get("sysinfo", {}) if status == 200 else {}
+        return detect_from_sysinfo(info)
+
     try:
         if args.command == "probe":
             from . import probe as probe_mod
@@ -257,6 +266,11 @@ def main(argv: list[str] | None = None) -> int:
                            == "strong-front-end-match" else 1)
 
         if args.command == "setup":
+            if args.wizard:
+                from . import wizard as wizard_mod
+                return wizard_mod.run_wizard(
+                    args.base_url, port=args.port, key=args.key,
+                    tls_fingerprint=args.tls_fingerprint)
             from .setup import run_setup
             result, code = run_setup(
                 args.base_url, args.port, args.key, assume_yes=args.yes,
@@ -315,7 +329,6 @@ def main(argv: list[str] | None = None) -> int:
 
         if args.command == "transfer":
             from . import transfer as transfer_mod
-            from .inject import I
             try:
                 with open(args.file, "rb") as fh:
                     data = fh.read()
@@ -326,7 +339,7 @@ def main(argv: list[str] | None = None) -> int:
             parts = transfer_mod.push_data(inj, data, args.tag)
             transfer_mod.assemble(inj, parts, args.target,
                                   expect_md5=hashlib.md5(data).hexdigest())
-            inj.do(f"rm{I}-f{I}/tmp/nxseg_{args.tag}_*")
+            inj.do(f"rm{inj.I}-f{inj.I}/tmp/nxseg_{args.tag}_*")
             log(f"[transfer] {args.target} written and md5-verified")
             return rep.out({"target": args.target, "parts": len(parts),
                             "md5_verified": True})
@@ -433,9 +446,18 @@ def main(argv: list[str] | None = None) -> int:
 
         if args.command == "wanwatch":
             from . import wanwatch as ww_mod
+            # wanwatch works over SSH only; use default device capabilities so
+            # it does not require a web session.
+            from .driver import default_device as _default_device
+            device = _default_device()
+            interfaces = {
+                "wan4_interface": device.cap("wan", "wan4_interface"),
+                "lan6_interface": device.cap("wan", "lan6_interface"),
+            }
             report, code = ww_mod.watch(host_of(args.base_url), args.port, args.key,
                                         os.path.expanduser(args.state_file),
-                                        notify=args.notify)
+                                        notify=args.notify,
+                                        interfaces=interfaces)
             return rep.out(report, code)
 
         if args.command in ("apply", "diff"):

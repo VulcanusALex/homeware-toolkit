@@ -1,0 +1,11 @@
+{
+  "domain": "nexxt_one_toolkit",
+  "name": "nexxt-one-toolkit",
+  "codeowners": ["@VulcanusALex"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/VulcanusALex/nexxt-one-toolkit",
+  "iot_class": "local_polling",
+  "requirements": ["nexxt-one-toolkit>=1.6.0"],
+  "version": "1.6.0"
+}

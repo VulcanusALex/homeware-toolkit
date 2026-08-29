@@ -33,8 +33,14 @@ def _fast_poll(module):
     """Patch a module's run_ping reference to poll the simulator faster."""
     real = inject_mod.run_ping
 
-    def wrapper(client, host, settle_timeout=45.0, poll_interval=0.05):
-        return real(client, host, settle_timeout, poll_interval)
+    def wrapper(client, host, settle_timeout=45.0, poll_interval=0.05,
+                service=None, reader=None):
+        kwargs = {}
+        if service is not None:
+            kwargs["service"] = service
+        if reader is not None:
+            kwargs["reader"] = reader
+        return real(client, host, settle_timeout, poll_interval, **kwargs)
 
     return mock.patch.object(module, "run_ping", wrapper)
 

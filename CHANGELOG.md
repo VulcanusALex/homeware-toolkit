@@ -5,6 +5,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/), versioning is se
 
 ## [Unreleased]
 
+### Added
+- Device-driver framework: `compat.json` schema 2 adds `driver` and
+  `capabilities` per fingerprint; the CLI loads the matching driver from
+  `nexxt_toolkit/drivers/` and reads device-specific constants instead of
+  hard-coding NeXXt One values.
+- Second driver (`openwrt`) demonstrating multi-device support and capability
+  inheritance from NeXXt defaults.
+- Local web setup wizard: `nexxt setup --wizard` serves a browser-based guide
+  on `127.0.0.1` for probe → login → verify → SSH bootstrap.
+- Installer build script (`tools/build_installer.py`) producing `nexxt.pyz`,
+  a macOS `.app` zip, and a Windows PyInstaller spec.
+- Home Assistant HACS custom component skeleton under `homeassistant/`.
+
+### Changed
+- `client.py`, `inject.py`, `firewall.py`, `ssh.py`, and `wanwatch.py` now
+  consume device capabilities for API paths, injection parameters, firewall
+  backend, SSH service/instance/shell, and WAN interface names.
+- `compat.json` is now loaded via `importlib.resources` so the zipapp
+  (`.pyz`) release artifact works without extracting package data.
+
 ### Fixed
 - Simulator fidelity, checked against real FW_058 hardware: every `nvget`
   readout requires an authenticated session (nginx 403 otherwise, even with

@@ -1,0 +1,21 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "nexxt-one-toolkit",
+        "description": "Set up monitoring for your NeXXt One gateway.",
+        "data": {
+          "base_url": "Gateway base URL",
+          "ssh_key": "SSH private key path",
+          "ssh_port": "SSH port"
+        }
+      }
+    },
+    "error": {
+      "file_not_found": "SSH key file not found"
+    },
+    "abort": {
+      "already_configured": "Device is already configured"
+    }
+  }
+}

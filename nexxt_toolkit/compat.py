@@ -4,6 +4,13 @@ The fingerprint data lives in ``compat.json`` next to this module so that
 adding support for a new board or firmware never requires a code change:
 edit the JSON, ship it, done.
 
+As of schema 2 each fingerprint may also declare a ``driver`` name and a
+``capabilities`` object.  The driver tells the CLI which device-specific
+implementation to load; capabilities supply per-device constants such as
+injection payload prefixes, firewall backends, and WAN interface names.
+When absent, the historical NeXXt One defaults are used so existing data
+and older ``compat.json`` files remain valid.
+
 Match semantics (used by the injection guard in ``inject.py``):
   * ``verified`` — board family matches AND the exact firmware is listed in
     ``known_firmware``;
@@ -24,9 +31,63 @@ from dataclasses import dataclass
 COMPAT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                            "compat.json")
 
+
+def _load_compat_data(path: str | None) -> dict:
+    """Load compat.json from a path or from the package resources.
+
+    When ``path`` is the default COMPAT_PATH (i.e. no custom path was supplied),
+    we read via ``importlib.resources`` so the toolkit works when packaged as a
+    zipapp (``.pyz``).  Custom paths are read directly from the filesystem for
+    tests and compatibility-report tooling.
+    """
+    if path is None or os.path.abspath(path or COMPAT_PATH) == os.path.abspath(COMPAT_PATH):
+        try:
+            from importlib.resources import files
+        except ImportError:  # pragma: no cover - Python <3.9 fallback
+            from importlib_resources import files  # type: ignore
+        raw = files(__package__).joinpath("compat.json").read_text(encoding="utf-8")
+        return json.loads(raw)
+    with open(path, encoding="utf-8") as fh:
+        return json.load(fh)
+
 STATUS_VERIFIED = "verified"
 STATUS_UNTESTED = "untested"
 STATUS_UNKNOWN = "unknown"
+
+# Historical NeXXt One defaults.  Used when a fingerprint entry does not
+# declare its own driver/capabilities (backward compatibility with schema 1).
+DEFAULT_DRIVER = "nexxt"
+DEFAULT_CAPABILITIES: dict = {
+    "api": {
+        "base_path": "/status.cgi",
+        "read_param": "nvget",
+        "write_action": "nvset",
+    },
+    "auth": {
+        "method": "button_login",
+        "service": "login_confirm",
+    },
+    "injection": {
+        "service": "pingstatus",
+        "payload_prefix": ":::::::;",
+        "space_substitute": "${IFS}",
+        "oracle_sleep": 5,
+    },
+    "firewall": {
+        "backend": "uci",
+    },
+    "ssh": {
+        "service": "dropbear",
+        "instance": "nx",
+        "shell": "/bin/ash",
+        "original_shell": "/bin/restricted_shell",
+        "key_algorithms": ["ssh-rsa"],
+    },
+    "wan": {
+        "wan4_interface": "veip0_1",
+        "lan6_interface": "br-lan",
+    },
+}
 
 
 @dataclass
@@ -45,12 +106,10 @@ def load_compat(path: str | None = None) -> list[dict]:
     Raises RuntimeError with a clear message if the database is missing or
     malformed — a broken database must fail closed, never silently match.
     """
-    path = path or COMPAT_PATH
     try:
-        with open(path, encoding="utf-8") as fh:
-            data = json.load(fh)
+        data = _load_compat_data(path)
     except FileNotFoundError:
-        raise RuntimeError(f"compatibility database not found: {path}")
+        raise RuntimeError(f"compatibility database not found: {path or COMPAT_PATH}")
     except json.JSONDecodeError as exc:
         raise RuntimeError(f"compatibility database is not valid JSON: {exc}")
     if not isinstance(data, dict) or not isinstance(data.get("fingerprints"), list):
@@ -62,7 +121,49 @@ def load_compat(path: str | None = None) -> list[dict]:
             if not isinstance(entry.get(key), str) or not entry[key]:
                 raise RuntimeError(
                     f"fingerprint entry missing non-empty {key!r}: {entry!r}")
+        if "driver" in entry and (not isinstance(entry["driver"], str)
+                                  or not entry["driver"]):
+            raise RuntimeError(
+                f"fingerprint entry 'driver' must be a non-empty string: "
+                f"{entry!r}")
+        if "capabilities" in entry and not isinstance(entry["capabilities"], dict):
+            raise RuntimeError(
+                f"fingerprint entry 'capabilities' must be an object: "
+                f"{entry!r}")
     return data["fingerprints"]
+
+
+def entry_driver(entry: dict | None) -> str:
+    """Return the driver name for a fingerprint entry.
+
+    Falls back to ``DEFAULT_DRIVER`` when the entry is missing or does not
+    declare one, preserving backward compatibility with schema 1.
+    """
+    if entry is None:
+        return DEFAULT_DRIVER
+    return entry.get("driver") or DEFAULT_DRIVER
+
+
+def _deep_update(base: dict, overlay: dict) -> dict:
+    """Return a new dict: ``base`` recursively merged with ``overlay``."""
+    result = dict(base)
+    for key, value in overlay.items():
+        if isinstance(value, dict) and isinstance(result.get(key), dict):
+            result[key] = _deep_update(result[key], value)
+        else:
+            result[key] = value
+    return result
+
+
+def entry_capabilities(entry: dict | None) -> dict:
+    """Return the capabilities for a fingerprint entry.
+
+    Missing sections are filled from ``DEFAULT_CAPABILITIES`` so callers can
+    safely read nested values even for minimal entries.
+    """
+    if entry is None:
+        return dict(DEFAULT_CAPABILITIES)
+    return _deep_update(DEFAULT_CAPABILITIES, entry.get("capabilities", {}))
 
 
 def _contains(haystack: str, needle: str) -> bool:

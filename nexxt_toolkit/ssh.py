@@ -95,6 +95,30 @@ def _validate_service_port(port: int) -> int:
     return port
 
 
+def _ssh_service(inj) -> str:
+    """Return the SSH service name (e.g. dropbear) from device capabilities."""
+    device = getattr(inj, "device", None)
+    return device.cap("ssh", "service", default="dropbear") if device else "dropbear"
+
+
+def _ssh_instance(inj) -> str:
+    """Return the UCI instance name from device capabilities."""
+    device = getattr(inj, "device", None)
+    return device.cap("ssh", "instance", default=INSTANCE) if device else INSTANCE
+
+
+def _ssh_shell(inj) -> str:
+    """Return the target root shell path from device capabilities."""
+    device = getattr(inj, "device", None)
+    return device.cap("ssh", "shell", default="/bin/ash") if device else "/bin/ash"
+
+
+def _ssh_original_shell(inj, fallback: str = "/bin/restricted_shell") -> str:
+    """Return the pre-toolkit root shell path from device capabilities."""
+    device = getattr(inj, "device", None)
+    return device.cap("ssh", "original_shell", default=fallback) if device else fallback
+
+
 def _prepare_state(inj, adopt_legacy: bool = False,
                    original_shell: str = "/bin/restricted_shell") -> None:
     """Create persistent ownership records before changing device state.
@@ -103,12 +127,17 @@ def _prepare_state(inj, adopt_legacy: bool = False,
     passwd backup in /tmp.  Refuse to guess unless the operator explicitly
     opts into adopting such an installation.
     """
-    original_shell = _validate_original_shell(original_shell)
+    original_shell = _validate_original_shell(
+        _ssh_original_shell(inj, fallback=original_shell))
+    ssh_service = _ssh_service(inj)
+    ssh_instance = _ssh_instance(inj)
+    ssh_shell = _ssh_shell(inj)
+    owner_marker = f"{STATE_DIR}/dropbear.{ssh_instance}.owned"
     has_instance = False if inj.dry_run else inj.ask(
-        f"uci{I}-q{I}show{I}dropbear.{INSTANCE}")
-    owned = False if inj.dry_run else inj.ask(f"test{I}-f{I}{OWNER_MARKER}")
+        f"uci{I}-q{I}show{I}{ssh_service}.{ssh_instance}")
+    owned = False if inj.dry_run else inj.ask(f"test{I}-f{I}{owner_marker}")
     shell_is_ash = False if inj.dry_run else inj.ask(
-        f"grep{I}-q{I}'^root:.*:/bin/ash'{I}/etc/passwd")
+        f"grep{I}-q{I}'^root:.*:{re.escape(ssh_shell)}'{I}/etc/passwd")
 
     if (has_instance or shell_is_ash) and not owned and not adopt_legacy:
         raise RuntimeError(
@@ -122,20 +151,23 @@ def _prepare_state(inj, adopt_legacy: bool = False,
         if adopt_legacy and shell_is_ash:
             inj.do(
                 f"grep{I}'^root:'{I}/etc/passwd|sed{I}"
-                f"'s#/bin/ash$#{original_shell}#'|tee{I}{ROOT_RECORD}")
+                f"'s#{re.escape(ssh_shell)}$#{original_shell}#'|tee{I}{ROOT_RECORD}")
         else:
             inj.do(f"grep{I}'^root:'{I}/etc/passwd|tee{I}{ROOT_RECORD}")
         if not inj.ask(f"test{I}-s{I}{ROOT_RECORD}"):
             raise RuntimeError("failed to persist the original root account record")
     inj.do(f"chmod{I}600{I}{ROOT_RECORD}")
-    inj.do(f"printf{I}%s{I}owned|tee{I}{OWNER_MARKER}")
-    inj.do(f"chmod{I}600{I}{OWNER_MARKER}")
+    inj.do(f"printf{I}%s{I}owned|tee{I}{owner_marker}")
+    inj.do(f"chmod{I}600{I}{owner_marker}")
 
 
 def backup_and_patch_shell(inj) -> None:
-    if not inj.ask(f"grep{I}-q{I}'^root:.*:/bin/ash'{I}/etc/passwd"):
-        inj.do("sed" + I + "-i" + I + "'s#^\\(root:.*:\\)[^:]*$#\\1/bin/ash#'" + I + "/etc/passwd")
-        if not inj.dry_run and not inj.ask(f"grep{I}-q{I}'^root:.*:/bin/ash'{I}/etc/passwd"):
+    ssh_shell = _ssh_shell(inj)
+    if not inj.ask(f"grep{I}-q{I}'^root:.*:{re.escape(ssh_shell)}'{I}/etc/passwd"):
+        inj.do("sed" + I + "-i" + I +
+               f"'s#^\\(root:.*:\\)[^:]*$#\\1{ssh_shell}#'" + I + "/etc/passwd")
+        if not inj.dry_run and not inj.ask(
+                f"grep{I}-q{I}'^root:.*:{re.escape(ssh_shell)}'{I}/etc/passwd"):
             raise RuntimeError("failed to patch root shell")
 
 
@@ -177,21 +209,23 @@ def install_key(inj, keydata: bytes) -> None:
 
 def create_instance(inj, port: int) -> None:
     port = _validate_service_port(port)
-    if not inj.dry_run and inj.ask(f"uci{I}-q{I}show{I}dropbear.{INSTANCE}"):
-        inj.log(f"[ssh] uci instance {INSTANCE!r} already exists, reusing")
+    ssh_service = _ssh_service(inj)
+    ssh_instance = _ssh_instance(inj)
+    if not inj.dry_run and inj.ask(f"uci{I}-q{I}show{I}{ssh_service}.{ssh_instance}"):
+        inj.log(f"[ssh] uci instance {ssh_instance!r} already exists, reusing")
     else:
-        inj.do(f"uci{I}add{I}dropbear{I}dropbear")
-        inj.do(f"uci{I}rename{I}dropbear.@dropbear[-1]={INSTANCE}")
-    inj.do(f"uci{I}set{I}dropbear.{INSTANCE}.enable=1")
-    inj.do(f"uci{I}set{I}dropbear.{INSTANCE}.Port={port}")
-    inj.do(f"uci{I}set{I}dropbear.{INSTANCE}.Interface=lan")
-    inj.do(f"uci{I}set{I}dropbear.{INSTANCE}.PasswordAuth=off")
-    inj.do(f"uci{I}set{I}dropbear.{INSTANCE}.RootPasswordAuth=off")
-    inj.do(f"uci{I}commit{I}dropbear")
-    inj.do(f"/etc/init.d/dropbear{I}restart")
+        inj.do(f"uci{I}add{I}{ssh_service}{I}{ssh_service}")
+        inj.do(f"uci{I}rename{I}{ssh_service}.@{ssh_service}[-1]={ssh_instance}")
+    inj.do(f"uci{I}set{I}{ssh_service}.{ssh_instance}.enable=1")
+    inj.do(f"uci{I}set{I}{ssh_service}.{ssh_instance}.Port={port}")
+    inj.do(f"uci{I}set{I}{ssh_service}.{ssh_instance}.Interface=lan")
+    inj.do(f"uci{I}set{I}{ssh_service}.{ssh_instance}.PasswordAuth=off")
+    inj.do(f"uci{I}set{I}{ssh_service}.{ssh_instance}.RootPasswordAuth=off")
+    inj.do(f"uci{I}commit{I}{ssh_service}")
+    inj.do(f"/etc/init.d/{ssh_service}{I}restart")
     time.sleep(2)
     if not inj.dry_run and not inj.ask(f"netstat{I}-tln|grep{I}-q{I}:{port}"):
-        raise RuntimeError(f"dropbear not listening on port {port}")
+        raise RuntimeError(f"{ssh_service} not listening on port {port}")
 
 
 def bootstrap(inj, pubkey_path: str, port: int, log=print,
@@ -210,17 +244,23 @@ def bootstrap(inj, pubkey_path: str, port: int, log=print,
 
 
 def status(inj, port: int) -> dict:
+    ssh_service = _ssh_service(inj)
+    ssh_instance = _ssh_instance(inj)
+    owner_marker = f"{STATE_DIR}/dropbear.{ssh_instance}.owned"
     return {
         "port": port,
         "listening": inj.ask(f"netstat{I}-tln|grep{I}-q{I}:{port}"),
-        "uci_instance": inj.ask(f"uci{I}-q{I}show{I}dropbear.{INSTANCE}"),
+        "uci_instance": inj.ask(f"uci{I}-q{I}show{I}{ssh_service}.{ssh_instance}"),
         "authorized_keys": inj.ask(f"test{I}-s{I}/etc/dropbear/authorized_keys"),
-        "managed_state": inj.ask(f"test{I}-s{I}{OWNER_MARKER}"),
+        "managed_state": inj.ask(f"test{I}-s{I}{owner_marker}"),
     }
 
 
 def teardown(inj, port: int, log=print, legacy_force: bool = False) -> None:
-    owned = False if inj.dry_run else inj.ask(f"test{I}-s{I}{OWNER_MARKER}")
+    ssh_service = _ssh_service(inj)
+    ssh_instance = _ssh_instance(inj)
+    owner_marker = f"{STATE_DIR}/dropbear.{ssh_instance}.owned"
+    owned = False if inj.dry_run else inj.ask(f"test{I}-s{I}{owner_marker}")
     if not owned and not legacy_force and not inj.dry_run:
         raise RuntimeError(
             "no persistent ownership record found; refusing destructive "
@@ -240,10 +280,10 @@ def teardown(inj, port: int, log=print, legacy_force: bool = False) -> None:
             inj.do(f"cp{I}/tmp/nx_passwd.bak{I}/etc/passwd")
         inj.do(f"rm{I}-f{I}/etc/dropbear/authorized_keys{I}/root/.ssh/authorized_keys")
 
-    if inj.ask(f"uci{I}-q{I}show{I}dropbear.{INSTANCE}"):
-        inj.do(f"uci{I}delete{I}dropbear.{INSTANCE}")
-        inj.do(f"uci{I}commit{I}dropbear")
-    inj.do(f"/etc/init.d/dropbear{I}restart")
+    if inj.ask(f"uci{I}-q{I}show{I}{ssh_service}.{ssh_instance}"):
+        inj.do(f"uci{I}delete{I}{ssh_service}.{ssh_instance}")
+        inj.do(f"uci{I}commit{I}{ssh_service}")
+    inj.do(f"/etc/init.d/{ssh_service}{I}restart")
     if owned:
         inj.do(f"rm{I}-rf{I}{STATE_DIR}")
     time.sleep(2)

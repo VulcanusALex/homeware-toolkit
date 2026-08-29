@@ -1,5 +1,5 @@
 {
-  "schema": 1,
+  "schema": 2,
   "fingerprints": [
     {
       "board": "GDNT-S",
@@ -10,7 +10,39 @@
         "22.2.0378_FW_056_FGA221D"
       ],
       "status": "verified",
-      "notes": "Fastweb NeXXt One (Technicolor/Vantiva FGA221D). FW_058 verified by the maintainer; FW_056 confirmed via community report. Same injection channel and web API surface on both."
+      "notes": "Fastweb NeXXt One (Technicolor/Vantiva FGA221D). FW_058 verified by the maintainer; FW_056 confirmed via community report. Same injection channel and web API surface on both.",
+      "driver": "nexxt",
+      "capabilities": {
+        "api": {
+          "base_path": "/status.cgi",
+          "read_param": "nvget",
+          "write_action": "nvset"
+        },
+        "auth": {
+          "method": "button_login",
+          "service": "login_confirm"
+        },
+        "injection": {
+          "service": "pingstatus",
+          "payload_prefix": ":::::::;",
+          "space_substitute": "${IFS}",
+          "oracle_sleep": 5
+        },
+        "firewall": {
+          "backend": "uci"
+        },
+        "ssh": {
+          "service": "dropbear",
+          "instance": "nx",
+          "shell": "/bin/ash",
+          "original_shell": "/bin/restricted_shell",
+          "key_algorithms": ["ssh-rsa"]
+        },
+        "wan": {
+          "wan4_interface": "veip0_1",
+          "lan6_interface": "br-lan"
+        }
+      }
     }
   ]
 }

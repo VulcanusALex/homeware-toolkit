@@ -26,5 +26,52 @@ human-readable summary.
    output (it contains no credentials, keys, MACs or serials).
 2. Open an issue using the *Compatibility report* template and paste the
    report: <https://github.com/VulcanusALex/nexxt-one-toolkit/issues>
-3. Once confirmed, the fingerprint is added to `compat.json` — no code
-   change required.
+3. Once confirmed, the fingerprint is added to `compat.json` — for the
+   NeXXt One family usually no code change is required.
+
+## Schema
+
+`compat.json` is versioned. Schema 2 adds per-fingerprint `driver` and
+`capabilities` fields so the toolkit can select device-specific behaviour
+without hard-coding NeXXt One constants.
+
+```json
+{
+  "schema": 2,
+  "fingerprints": [
+    {
+      "board": "GDNT-S",
+      "model_prefix": "FGA221",
+      "product_contains": "NeXXt",
+      "known_firmware": ["22.2.0378_FW_058_FGA221D"],
+      "status": "verified",
+      "driver": "nexxt",
+      "capabilities": {
+        "api": {"base_path": "/status.cgi", "read_param": "nvget", "write_action": "nvset"},
+        "auth": {"method": "button_login", "service": "login_confirm"},
+        "injection": {"service": "pingstatus", "payload_prefix": ":::::::;", "space_substitute": "${IFS}", "oracle_sleep": 5},
+        "firewall": {"backend": "uci"},
+        "ssh": {"service": "dropbear", "instance": "nx", "shell": "/bin/ash", "original_shell": "/bin/restricted_shell", "key_algorithms": ["ssh-rsa"]},
+        "wan": {"wan4_interface": "veip0_1", "lan6_interface": "br-lan"}
+      }
+    }
+  ]
+}
+```
+
+- `driver` selects the device-family implementation under `nexxt_toolkit/drivers/`.
+- `capabilities` are merged with the NeXXt One defaults, so a new entry only
+  needs to override values that differ from the default.
+
+## Adding a new device family
+
+When a fingerprint matches a different board family, the workflow is:
+
+1. Add the fingerprint to `compat.json` with `"driver": "<name>"`.
+2. Create `nexxt_toolkit/drivers/<name>.py` and register it in
+   `nexxt_toolkit/drivers/__init__.py`.
+3. Start by overriding the capabilities that differ; the CLI and Injector will
+  pick them up automatically.
+
+Until a dedicated driver module lands, unknown driver names fall back to the
+`nexxt` driver, so new `compat.json` entries can be shipped before code.

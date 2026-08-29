@@ -22,6 +22,11 @@ import urllib.request
 
 from . import __version__
 
+# Imported lazily to avoid circular imports; driver.py imports compat only.
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from .driver import Device
+
 DEFAULT_BASE_URL = "https://192.168.1.254"
 USER_AGENT = f"nexxt-one-toolkit/{__version__} (own-network diagnostics)"
 
@@ -138,7 +143,8 @@ class SessionExpired(RuntimeError):
 class NexxtClient:
     def __init__(self, base_url: str = DEFAULT_BASE_URL, timeout: float = 5.0,
                  work_dir: str = ".work",
-                 tls_fingerprint: str | None = None) -> None:
+                 tls_fingerprint: str | None = None,
+                 device: "Device" | None = None) -> None:
         parsed = urllib.parse.urlparse(base_url)
         if parsed.scheme not in {"http", "https"} or not parsed.hostname:
             raise RuntimeError("base URL must be an http(s) URL with a host")
@@ -151,6 +157,16 @@ class NexxtClient:
         # off (the device uses a self-signed certificate).
         self.tls_fingerprint = (normalize_tls_fingerprint(tls_fingerprint)
                                 if tls_fingerprint is not None else None)
+
+        # Device capabilities select the web API shape.  When no device is
+        # supplied we default to the historical NeXXt One behaviour.
+        if device is None:
+            from .driver import default_device
+            device = default_device()
+        self.device = device
+        self._api_base = self.device.cap("api", "base_path", default="/status.cgi")
+        self._api_read = self.device.cap("api", "read_param", default="nvget")
+        self._api_write = self.device.cap("api", "write_action", default="nvset")
 
         os.makedirs(work_dir, exist_ok=True)
         self.cookie_file = os.path.join(work_dir, "nexxt_session_cookies.txt")
@@ -177,7 +193,7 @@ class NexxtClient:
     def _cgi(self, params: dict) -> tuple[int, dict]:
         query = dict(params)
         query["_"] = int(time.time() * 1000)
-        url = f"{self.base_url}/status.cgi?{urllib.parse.urlencode(query)}"
+        url = f"{self.base_url}{self._api_base}?{urllib.parse.urlencode(query)}"
         try:
             with self.opener.open(url, timeout=self.timeout) as response:
                 body = response.read(1_000_000).decode("utf-8", errors="replace")
@@ -194,19 +210,21 @@ class NexxtClient:
             return status, {"raw_body": body[:2000]}
 
     def get(self, service: str, **params) -> tuple[int, dict]:
-        return self._cgi({"nvget": service, **params})
+        return self._cgi({self._api_read: service, **params})
 
     def set(self, service: str, **params) -> tuple[int, dict]:
-        return self._cgi({"act": "nvset", "service": service, **params})
+        return self._cgi({"act": self._api_write, "service": service, **params})
 
     # ---- auth ----
 
     def login_status(self) -> tuple[int, dict]:
-        return self.get("login_confirm", cmd=4)
+        auth_service = self.device.cap("auth", "service", default="login_confirm")
+        return self.get(auth_service, cmd=4)
 
     def is_authenticated(self) -> bool:
+        auth_service = self.device.cap("auth", "service", default="login_confirm")
         status, data = self.login_status()
-        return status == 200 and str(data.get("login_confirm", {}).get("login_status")) == "1"
+        return status == 200 and str(data.get(auth_service, {}).get("login_status")) == "1"
 
     def require_auth(self) -> None:
         if not self.is_authenticated():
@@ -231,11 +249,12 @@ class NexxtClient:
 
     def button_login(self, wait_seconds: int = 60, log=print) -> bool:
         """Reproduce the UI login: fresh session, arm button wait, poll, confirm."""
+        auth_service = self.device.cap("auth", "service", default="login_confirm")
         self.fresh_session()
         log("[login] fresh session created (must stay the latest — do not open")
         log("        the router page in a browser during this process)")
 
-        status, data = self.set("login_confirm", cmd=7, loginPath=2)
+        status, data = self.set(auth_service, cmd=7, loginPath=2)
         log(f"[login] armed button wait (http {status})")
         log(f"[login] press BOTH side buttons for 3s within {wait_seconds}s")
         deadline = time.time() + wait_seconds
@@ -244,15 +263,15 @@ class NexxtClient:
             time.sleep(1.0)
             if detected:
                 _, data = self.login_status()
-                state = str(data.get("login_confirm", {}).get("login_status", ""))
+                state = str(data.get(auth_service, {}).get("login_status", ""))
                 if state == "1":
                     return True
                 if not confirmed:
                     confirmed = True
-                    self.set("login_confirm", cmd=7, loginPath=1)
+                    self.set(auth_service, cmd=7, loginPath=1)
                 continue
-            _, data = self.get("login_confirm", cmd=7)
-            if str(data.get("login_confirm", {}).get("loginPath", "")) == "1":
+            _, data = self.get(auth_service, cmd=7)
+            if str(data.get(auth_service, {}).get("loginPath", "")) == "1":
                 detected = True
                 log("[login] button press detected")
         return False

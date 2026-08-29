@@ -12,13 +12,13 @@ For now only the historical NeXXt One driver exists.  New drivers are added by:
 
 from __future__ import annotations
 
-from typing import Callable
+from typing import Callable, Optional
 
 from ..driver import Device
 from . import nexxt as _nexxt
 from . import openwrt as _openwrt
 
-_DriverFactory = Callable[[dict | None], Device]
+_DriverFactory = Callable[[Optional[dict]], Device]
 
 _REGISTRY: dict[str, _DriverFactory] = {
     "nexxt": _nexxt.make_device,

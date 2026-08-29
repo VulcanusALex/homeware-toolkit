@@ -32,7 +32,6 @@ import time
 
 from . import __version__
 from .client import DEFAULT_BASE_URL, GatewayClient, SessionExpired
-from .driver import detect_from_sysinfo
 from .inject import Injector
 from .ssh import host_of
 
@@ -243,12 +242,6 @@ def main(argv: list[str] | None = None) -> int:
     def make_client() -> GatewayClient:
         return GatewayClient(args.base_url,
                            tls_fingerprint=args.tls_fingerprint)
-
-    def detect_device(client: GatewayClient):
-        """Match the connected gateway against compat.json."""
-        status, data = client.get("sysinfo")
-        info = data.get("sysinfo", {}) if status == 200 else {}
-        return detect_from_sysinfo(info)
 
     try:
         if args.command == "probe":

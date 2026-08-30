@@ -195,7 +195,8 @@ def _notify(title: str, body: str) -> None:
 
 def watch(host: str, port: int, key: str, state_file: str,
           notify: bool = False,
-          interfaces: dict | None = None) -> tuple[dict, int]:
+          interfaces: dict | None = None,
+          runner=None) -> tuple[dict, int]:
     """Snapshot WAN state and compare with the last run.
 
     Returns (report, exit_code): 0 public IPv4, 1 not-yet-public,
@@ -204,7 +205,9 @@ def watch(host: str, port: int, key: str, state_file: str,
     ``interfaces`` optionally overrides the default WAN/LAN interface names
     when the toolkit is used with a different device family.
     """
-    proc = ssh_run(host, port, key, _remote_command(interfaces))
+    watch_cmd = _remote_command(interfaces)
+    proc = (runner(watch_cmd) if runner is not None
+            else ssh_run(host, port, key, watch_cmd))
     if proc.returncode != 0 or not proc.stdout.strip():
         return {"error": proc.stderr.strip() or "no output"}, 3
 

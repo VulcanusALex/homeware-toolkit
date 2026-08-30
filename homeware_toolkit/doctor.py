@@ -21,7 +21,7 @@ def _wan_class(ip: str) -> str:
 
 def run_doctor(base_url: str, port: int, key: str | None = None,
                check_injection: bool = True, check_egress: bool = False,
-               log=print) -> tuple[list[dict], int]:
+               log=print, runner=None) -> tuple[list[dict], int]:
     """Returns (stages, exit_code). exit 0 = all critical stages pass."""
     stages: list[dict] = []
 
@@ -72,11 +72,13 @@ def run_doctor(base_url: str, port: int, key: str | None = None,
         except Exception as exc:
             stage("command-injection", FAIL, str(exc))
     else:
-        stage("command-injection", SKIP, "needs session")
+        stage("command-injection", SKIP,
+              "needs session" if not authed else "disabled")
 
     # 4. SSH service (via oracle if authed, or real SSH if key given)
     if key:
-        proc = ssh_run(host_of(base_url), port, key, "echo OK")
+        proc = (runner("echo OK") if runner is not None
+                else ssh_run(host_of(base_url), port, key, "echo OK"))
         if "OK" in proc.stdout:
             stage("ssh-service", PASS, f"port {port} reachable with key")
         else:
@@ -101,8 +103,9 @@ def run_doctor(base_url: str, port: int, key: str | None = None,
                                       default="veip0_1")
     wan_class = None
     if key:
-        proc = ssh_run(host_of(base_url), port, key,
-                       f"ip -4 addr show dev {wan4_iface} | grep 'inet '")
+        wan_cmd = f"ip -4 addr show dev {wan4_iface} | grep 'inet '"
+        proc = (runner(wan_cmd) if runner is not None
+                else ssh_run(host_of(base_url), port, key, wan_cmd))
         import re
         m = re.search(r"inet (\d+\.\d+\.\d+\.\d+)", proc.stdout)
         if m:

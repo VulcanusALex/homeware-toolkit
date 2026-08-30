@@ -125,7 +125,10 @@ Firmware compatibility is data-driven via
 [COMPATIBILITY.md](COMPATIBILITY.md); `homeware probe --report` produces the
 issue-ready report for new firmware. The toolkit is developed hardware-free:
 `homeware simulate` runs a fake gateway that speaks the same web API, button
-login and injection channel.
+login and injection channel, and emulates the device shell (uci, dropbear,
+firewall) closely enough that the full workflow — probe, login, verify, SSH
+bootstrap, firewall rules, apply/diff, doctor, teardown — runs against it.
+Only the real-hardware SSH handshake itself is out of scope.
 
 ## Distribution & integrations
 

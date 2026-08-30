@@ -146,6 +146,14 @@ class Injector:
             self.client, self.payload_prefix + cmd,
             service=self.injection_service,
             reader=self.injection_reader)
+        if elapsed < 0:
+            # The submit itself was rejected (e.g. the session expired):
+            # without this, a mutation would be silently skipped and any
+            # follow-up oracle read would report a false negative.
+            from .client import SessionExpired
+            raise SessionExpired(
+                "injection submit rejected; the session may have expired — "
+                "run 'homeware session login' again")
         return elapsed
 
     def ask(self, cmd: str) -> bool:
@@ -158,4 +166,9 @@ class Injector:
             self.payload_prefix + cmd + f"&&sleep{self.I}{sleep}",
             service=self.injection_service,
             reader=self.injection_reader)
+        if elapsed < 0:
+            from .client import SessionExpired
+            raise SessionExpired(
+                "injection submit rejected; the session may have expired — "
+                "run 'homeware session login' again")
         return elapsed > self.base + sleep - 2

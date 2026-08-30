@@ -87,6 +87,85 @@ def ssh_run(host: str, port: int, key: str, remote_cmd: str,
         capture_output=True, text=True, timeout=timeout, check=False)
 
 
+# ---- pluggable command transport -------------------------------------
+#
+# Every SSH-data-plane feature (fw/apply/vpn/doctor --key/...) shells out to
+# the system ssh binary via ssh_run.  When the target is the bundled
+# simulator there is no real SSH daemon: commands are instead executed in
+# the simulator's virtual shell over its loopback-only /__sim__/exec
+# endpoint.  Callers receive the same CompletedProcess shape either way.
+
+
+def is_simulator(base_url: str) -> bool:
+    """True when base_url serves the in-process simulator (loopback only)."""
+    import urllib.request
+    try:
+        req = urllib.request.Request(base_url + "/", method="GET")
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            return bool(resp.headers.get("X-Homeware-Simulator"))
+    except Exception:
+        return False
+
+
+class SSHRunner:
+    """Run commands on the real device through the system ssh binary."""
+
+    def __init__(self, host: str, port: int, key: str,
+                 verify_host_key: bool = True) -> None:
+        self.host, self.port, self.key = host, port, key
+        self.verify_host_key = verify_host_key
+
+    def __call__(self, cmd: str, timeout: int = 60) -> subprocess.CompletedProcess:
+        return ssh_run(self.host, self.port, self.key, cmd,
+                       timeout=timeout, verify_host_key=self.verify_host_key)
+
+
+class SimRunner:
+    """Run commands in the simulator's virtual shell (development/demo).
+
+    Emulates connection semantics: commands fail like a refused publickey
+    login until the toolkit's dropbear instance is listening with an
+    authorized key installed.
+    """
+
+    def __init__(self, base_url: str, port: int) -> None:
+        self.base_url = base_url.rstrip("/")
+        self.port = port
+
+    def _post(self, cmd: str) -> tuple[int, str]:
+        import json as _json
+        import urllib.request
+        req = urllib.request.Request(
+            self.base_url + "/__sim__/exec", data=cmd.encode("utf-8"),
+            headers={"Content-Type": "text/plain"}, method="POST")
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            payload = _json.loads(resp.read().decode("utf-8"))
+        return int(payload["rc"]), str(payload["stdout"])
+
+    def __call__(self, cmd: str, timeout: int = 60) -> subprocess.CompletedProcess:
+        rc, _ = self._post(
+            f"netstat -tln | grep -q :{self.port} && "
+            "test -s /etc/dropbear/authorized_keys")
+        if rc != 0:
+            return subprocess.CompletedProcess(
+                cmd, 255, "",
+                f"ssh: connect to host {self.base_url} port {self.port}: "
+                "Permission denied (publickey)")
+        rc, out = self._post(cmd)
+        return subprocess.CompletedProcess(cmd, rc, out, "")
+
+
+def make_runner(base_url: str, port: int, key: str | None,
+                verify_host_key: bool = True, log=print):
+    """Pick the command transport for the target (real SSH or simulator)."""
+    if is_simulator(base_url):
+        log("[sim] target is the bundled simulator; commands run in its "
+            "virtual shell instead of a real SSH connection")
+        return SimRunner(base_url, port)
+    return SSHRunner(host_of(base_url), port, key or "",
+                     verify_host_key=verify_host_key)
+
+
 def _validate_original_shell(value: str) -> str:
     if not re.fullmatch(r"/[A-Za-z0-9_./-]{1,127}", value):
         raise RuntimeError("original shell must be an absolute path")

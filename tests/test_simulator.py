@@ -121,8 +121,9 @@ class VirtualShellUnit(unittest.TestCase):
         self.assertEqual(self.shell.run(f"md5sum /tmp/x_1 | grep -q {expect}"), 0)
         self.assertEqual(self.shell.run(f"md5 /tmp/x_1 | grep -q {expect}"), 0)
         self.assertEqual(self.shell.run("rm -f /tmp/x_*"), 0)
-        self.assertEqual(self.shell.fs, {})
-        self.assertEqual(self.shell.run("rm /tmp/x_1"), 1)  # no -f: error
+        self.assertNotIn("/tmp/x_1", self.shell.fs)
+        self.assertNotIn("/tmp/x_2", self.shell.fs)
+        self.assertEqual(self.shell.run("rm /tmp/x_1"), 1)  # no -f, no file: error
 
     def test_mkdir_touch_unknown(self):
         self.assertEqual(self.shell.run("mkdir -p /etc/nx"), 0)
@@ -305,3 +306,181 @@ class MultiProfileSimulator(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class VirtualShellExtended(unittest.TestCase):
+    """Unit tests for the shell surface the SSH-data-plane commands need."""
+
+    def setUp(self):
+        self.shell = VirtualShell(time_scale=0.01)
+
+    def cap(self, cmd):
+        return self.shell.run_capture(cmd)
+
+    def test_stdout_capture_and_dev_null(self):
+        self.assertEqual(self.cap("echo hi"), (0, b"hi\n"))
+        self.assertEqual(self.cap("echo hi > /dev/null 2>&1"), (0, b""))
+
+    def test_stdin_redirect_and_parens(self):
+        self.cap("printf %s hello > /tmp/in")
+        self.assertEqual(self.cap("cat < /tmp/in"), (0, b"hello"))
+        self.assertEqual(self.cap("(false || true) && echo ok"), (0, b"ok\n"))
+
+    def test_sed_pipe_and_inplace(self):
+        rc, out = self.cap(
+            "sed 's#^\\(root:.*:\\)[^:]*$#\\1/bin/ash#' /etc/passwd | grep '^root:'")
+        self.assertEqual(rc, 0)
+        self.assertEqual(out, b"root:!:0:0:root:/root:/bin/ash\n")
+        self.assertEqual(self.cap(
+            "sed -i 's#^\\(root:.*:\\)[^:]*$#\\1/bin/ash#' /etc/passwd"), (0, b""))
+        self.assertEqual(self.cap("grep -q '^root:.*:/bin/ash' /etc/passwd"),
+                         (0, b""))
+
+    def test_grep_extended_and_pattern_file(self):
+        self.cap("printf '%s\\n' alpha beta > /tmp/g")
+        rc, out = self.cap("grep -E '^(alp|bet)' /tmp/g")
+        self.assertEqual((rc, out), (0, b"alpha\nbeta\n"))
+        self.cap("printf '%s\\n' alpha > /tmp/pats")
+        self.assertEqual(self.cap("grep -vxF -f /tmp/pats /tmp/g"),
+                         (0, b"beta\n"))
+
+    def test_cut_and_id(self):
+        self.assertEqual(self.cap("printf '%s\\n' a.b.c | cut -d. -f2"),
+                         (0, b"b\n"))
+        self.assertTrue(self.cap("id")[1].startswith(b"uid=0(root)"))
+
+    def test_uci_lifecycle(self):
+        self.assertEqual(self.cap(
+            "uci add firewall rule && "
+            "uci set firewall.@rule[-1].name='Allow-X' && "
+            "uci set firewall.@rule[-1].dest_port='51820'"), (0, b""))
+        rc, out = self.cap("uci show firewall")
+        self.assertIn("firewall.@rule[0].name='Allow-X'", out.decode())
+        # staged vs committed: export reads committed state
+        _, exported_before = self.cap("uci export firewall")
+        self.assertNotIn("Allow-X", exported_before.decode())
+        self.cap("uci commit firewall")
+        _, exported = self.cap("uci export firewall")
+        self.assertIn("Allow-X", exported.decode())
+        # revert discards staged changes
+        self.cap("uci set firewall.@rule[0].name='Changed'")
+        self.cap("uci -q revert firewall")
+        _, out2 = self.cap("uci show firewall")
+        self.assertIn("Allow-X", out2.decode())
+        # import restores an exported config
+        self.cap("uci delete firewall.@rule[0] && uci commit firewall")
+        _, out3 = self.cap("uci show firewall")
+        self.assertNotIn("Allow-X", out3.decode())
+        self.cap("printf %s \"" + exported.decode().replace('"', '\\"')
+                 + "\" > /tmp/bak && uci import firewall < /tmp/bak "
+                 "&& uci commit firewall")
+        _, out4 = self.cap("uci show firewall")
+        self.assertIn("Allow-X", out4.decode())
+
+    def test_uci_rename_and_quiet_show(self):
+        self.cap("uci add dropbear dropbear && "
+                 "uci rename dropbear.@dropbear[-1]=nx && "
+                 "uci set dropbear.nx.Port=2222")
+        # -q suppresses errors, not show output
+        rc, out = self.cap("uci -q show dropbear.nx")
+        self.assertEqual(rc, 0)
+        self.assertIn("dropbear.nx.Port='2222'", out.decode())
+        self.assertEqual(self.cap("uci -q show dropbear.missing"), (1, b""))
+
+    def test_initd_dropbear_drives_netstat(self):
+        self.assertEqual(self.cap("netstat -tln"), (1, b""))
+        self.cap("uci add dropbear dropbear && "
+                 "uci rename dropbear.@dropbear[-1]=nx && "
+                 "uci set dropbear.nx.enable=1 && "
+                 "uci set dropbear.nx.Port=2222 && "
+                 "uci commit dropbear")
+        self.cap("/etc/init.d/dropbear restart")
+        self.assertEqual(self.cap("netstat -tln | grep -q :2222"), (0, b""))
+        self.cap("/etc/init.d/dropbear stop")
+        self.assertEqual(self.cap("netstat -tln | grep -q :222")[0], 1)
+
+    def test_iptables_save_reflects_committed_rules(self):
+        self.cap("uci add firewall rule && "
+                 "uci set firewall.@rule[-1].name='Allow-AWG-v6' && "
+                 "uci set firewall.@rule[-1].src='wan' && "
+                 "uci set firewall.@rule[-1].proto='udp' && "
+                 "uci set firewall.@rule[-1].dest_ip='2001:db8::123' && "
+                 "uci set firewall.@rule[-1].dest_port='51820' && "
+                 "uci set firewall.@rule[-1].family='ipv6' && "
+                 "uci set firewall.@rule[-1].enabled='1' && "
+                 "uci commit firewall")
+        _, v6 = self.cap("ip6tables-save -c")
+        self.assertIn("!fw3: Allow-AWG-v6", v6.decode())
+        _, v4 = self.cap("iptables-save -c")
+        self.assertNotIn("Allow-AWG-v6", v4.decode())  # ipv6-only rule
+
+    def test_ip_addr_and_ifstatus(self):
+        rc, out = self.cap("ip -4 addr show dev veip0_1 | grep 'inet '")
+        self.assertEqual(rc, 0)
+        self.assertIn("inet 10.", out.decode())
+        rc, out = self.cap("ifstatus wan6")
+        self.assertEqual(rc, 0)
+        self.assertIn('"up": true', out.decode())
+
+
+class SimSSHDataPlane(GatewayCase):
+    """Full lifecycle against the simulator: bootstrap, SSH runner, fw."""
+
+    def _pubkey(self) -> str:
+        path = os.path.join(self.tmp.name, "id_rsa.pub")
+        with open(path, "w") as fh:
+            fh.write("ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC7 test@sim\n")
+        return path
+
+    def test_full_lifecycle(self):
+        from homeware_toolkit import ssh as ssh_mod
+        from homeware_toolkit.firewall import FW
+        runner = ssh_mod.SimRunner(self.gateway.base_url, 2222)
+
+        # before bootstrap the simulated SSH endpoint refuses connections
+        self.assertEqual(runner("echo hi").returncode, 255)
+
+        self.quick_login()
+        with _fast_poll(inject_mod), \
+                mock.patch.object(inject_mod, "ORACLE_SLEEP", FAST_ORACLE_SLEEP):
+            inj = Injector(self.client, log=SILENT)
+            ssh_mod.bootstrap(inj, self._pubkey(), 2222, log=SILENT)
+            st = ssh_mod.status(inj, 2222)
+            self.assertTrue(all(st.values()), st)
+
+        proc = runner("echo SSH_OK; id")
+        self.assertEqual(proc.returncode, 0)
+        self.assertIn("SSH_OK", proc.stdout)
+
+        fw = FW("127.0.0.1", 2222, "unused", runner=runner)
+        result = fw.ensure("Allow-AWG-v6", "udp", "2001:db8::123", "51820")
+        self.assertTrue(result["changed"])
+        self.assertFalse(fw.ensure("Allow-AWG-v6", "udp",
+                                   "2001:db8::123", "51820")["changed"])
+        names = [r.get("name") for r in fw.list_rules()]
+        self.assertIn("Allow-AWG-v6", names)
+        self.assertTrue(fw.audit()["ok"])
+        self.assertEqual(fw.delete("Allow-AWG-v6"), ["@rule[0]"])
+        self.assertNotIn("Allow-AWG-v6",
+                         [r.get("name") for r in fw.list_rules()])
+
+        self.quick_login()
+        with _fast_poll(inject_mod), \
+                mock.patch.object(inject_mod, "ORACLE_SLEEP", FAST_ORACLE_SLEEP):
+            inj = Injector(self.client, log=SILENT)
+            ssh_mod.teardown(inj, 2222, log=SILENT)
+        self.assertEqual(runner("echo hi").returncode, 255)
+        self.assertEqual(self.gateway.read_file("/etc/passwd"),
+                         b"root:!:0:0:root:/root:/bin/restricted_shell\n"
+                         b"daemon:*:1:1:daemon:/var:/bin/false\n"
+                         b"nobody:*:99:99:nobody:/var:/bin/false\n")
+
+    def test_oracle_raises_on_expired_session(self):
+        from homeware_toolkit.client import SessionExpired
+        self.quick_login()
+        with _fast_poll(inject_mod):
+            inj = Injector(self.client, log=SILENT)
+        # simulate session expiry: drop all sessions server-side
+        self.gateway._sessions.clear()
+        with _fast_poll(inject_mod):
+            with self.assertRaises(SessionExpired):
+                inj.ask("true")

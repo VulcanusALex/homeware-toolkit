@@ -58,7 +58,8 @@ def _confirm(assume_yes: bool, input_fn=input) -> None:
 
 def run_setup(base_url: str, port: int = 2222, key_path: str = DEFAULT_KEY,
               assume_yes: bool = False, force: bool = False,
-              adopt_legacy: bool = False, log=print) -> tuple[dict, int]:
+              adopt_legacy: bool = False, log=print,
+              runner=None) -> tuple[dict, int]:
     report: dict = {"steps": []}
     probe = run_probe(base_url)
     compatibility = probe["analysis"]["compatibility_signal"]
@@ -92,8 +93,9 @@ def run_setup(base_url: str, port: int = 2222, key_path: str = DEFAULT_KEY,
     try:
         ssh_mod.bootstrap(inj, public_key, port, log=log,
                           adopt_legacy=adopt_legacy)
-        proc = ssh_mod.ssh_run(ssh_mod.host_of(base_url), port, private_key,
-                               "echo SSH_OK; id")
+        proc = (runner("echo SSH_OK; id") if runner is not None
+                else ssh_mod.ssh_run(ssh_mod.host_of(base_url), port,
+                                     private_key, "echo SSH_OK; id"))
         if proc.returncode != 0 or "SSH_OK" not in proc.stdout:
             raise RuntimeError(proc.stderr.strip() or "SSH handshake failed")
     except Exception:
@@ -107,6 +109,6 @@ def run_setup(base_url: str, port: int = 2222, key_path: str = DEFAULT_KEY,
 
     report["steps"].append({"step": "ssh", "result": "handshake-ok"})
     stages, code = run_doctor(base_url, port, key=private_key,
-                              check_injection=False, log=log)
+                              check_injection=False, log=log, runner=runner)
     report["doctor"] = stages
     return report, code

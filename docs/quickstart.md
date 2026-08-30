@@ -148,19 +148,24 @@ Tip: pin the gateway certificate once and use it on every call —
 
 ## No hardware? Develop or demo against the simulator
 
-Every feature above except the real hardware handshake can be exercised
-against a fake gateway running on your machine:
+Every feature above can be exercised against a fake gateway running on your
+machine — probe, button login, injection verify, the full SSH bootstrap
+(including a simulated handshake), firewall rules, apply/diff, doctor and
+teardown:
 
 ```bash
-./homeware simulate --time-scale 0.1        # serves on http://127.0.0.1:<port>
+./homeware simulate                                # serves on http://127.0.0.1:<port>
 ./homeware --base-url http://127.0.0.1:<port> probe
 ./homeware --base-url http://127.0.0.1:<port> session login   # virtual button press
+./homeware --base-url http://127.0.0.1:<port> setup --yes        # end-to-end, key included
 ```
 
 The simulator speaks the same web API, button-login handshake and injection
-channel (backed by an in-memory filesystem). It is what the integration test
-suite runs against, and the fastest way to contribute without owning the
-device.
+channel, and emulates the device shell (a staged/committed uci model, dropbear
+lifecycle, firewall state) in an in-memory filesystem. SSH-data-plane commands
+(`fw`, `apply`, `doctor --key`, ...) automatically route into that virtual
+shell when the target is the simulator — look for the `[sim]` log line. The
+integration test suite runs against exactly this path.
 
 ## Full rollback
 

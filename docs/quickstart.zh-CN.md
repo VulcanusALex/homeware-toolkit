@@ -137,16 +137,21 @@ ssh -i ~/.homeware-toolkit/id_rsa -p 2222 \
 
 ## 没有硬件？用模拟器开发或演示
 
-除了真机按键握手，以上功能都能在本地假网关上完整演练：
+以上所有功能都能在本地假网关上完整演练——探测、按键登录、注入验证、
+完整的 SSH 部署（含模拟握手）、防火墙规则、apply/diff、doctor、拆除：
 
 ```bash
-./homeware simulate --time-scale 0.1        # 监听 http://127.0.0.1:<端口>
+./homeware simulate                                # 监听 http://127.0.0.1:<端口>
 ./homeware --base-url http://127.0.0.1:<端口> probe
 ./homeware --base-url http://127.0.0.1:<端口> session login   # 虚拟按键
+./homeware --base-url http://127.0.0.1:<端口> setup --yes     # 端到端，含密钥生成
 ```
 
-模拟器实现了同一套 Web API、按键登录握手和注入通道（背后是内存文件系统）。
-集成测试套件就是跑在它上面的，也是没有设备时参与贡献的最快方式。
+模拟器实现了同一套 Web API、按键登录握手和注入通道，并在内存文件系统上
+仿真设备 shell（带暂存/提交语义的 uci 模型、dropbear 生命周期、防火墙
+状态）。SSH 数据面命令（`fw`、`apply`、`doctor --key` 等）在目标是模拟器
+时自动路由进这个虚拟 shell（留意 `[sim]` 日志行）。集成测试套件跑的就是
+这条路径。
 
 ## 完全还原
 

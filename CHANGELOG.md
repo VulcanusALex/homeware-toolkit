@@ -3,6 +3,35 @@
 All notable changes to this project are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/), versioning is semver.
 
+## [2.1.0] - 2026-08-30
+
+### Added
+- The simulator is now a full device double: the virtual shell gained a
+  staged/committed uci model, dropbear lifecycle (`/etc/init.d/dropbear`
+  drives the listening-port state), firewall state with synthesized
+  `iptables-save` output, `sed`/`cut`/`cp`/`mv`/`grep -E/-f`, stdin
+  redirection and subshell grouping, plus seeded `/etc/passwd` and stock
+  configs.
+- Simulated SSH transport: when the target is the bundled simulator, the
+  SSH-data-plane commands (`ssh run`, `fw`, `apply`/`diff`, `vpn`, `doctor
+  --key`, `audit-update`, `wanwatch`, `dashboard`, `inbound observe`) execute
+  in the simulator's virtual shell instead of requiring a real SSH daemon.
+  Detection is automatic via a simulator-only HTTP header; a `[sim]` log line
+  marks every such invocation.
+- `simulate` now serves a 1-hour demo session TTL (the 5-minute stock TTL is
+  too short for a manual walkthrough).
+
+### Fixed
+- The injection oracle (`Injector.do`/`ask`) silently returned "false" when
+  the submit itself was rejected (e.g. an expired session), which could abort
+  bootstrap mid-write. It now raises `SessionExpired` loudly.
+- `homeware apply` crashed with `TypeError` on a fully successful run
+  (`failed` is a single op record, not a list).
+- `homeware fw list`/`fw delete` failed on devices whose firewall config has
+  no named sections (empty grep match exits 1).
+- `doctor` printed `command-injection: SKIP needs session` when the check was
+  simply disabled; it now says `disabled`.
+
 ## [2.0.0] - 2026-08-30
 
 ### Upgrade notes

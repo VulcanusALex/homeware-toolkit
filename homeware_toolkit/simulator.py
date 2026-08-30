@@ -8,10 +8,14 @@ Simulates the stock web stack closely enough for the toolkit clients:
   * the ping diagnostic endpoint, including the host-field command
     injection channel: injected commands are interpreted by a tiny
     restricted shell operating on an in-memory virtual filesystem, so the
-    full transfer pipeline (chunk / verify / assemble / md5) really runs.
+    full transfer pipeline (chunk / verify / assemble / md5) really runs;
+  * a loopback-only ``POST /__sim__/exec`` endpoint that executes commands in
+    the virtual shell — this backs the toolkit's simulated-SSH transport
+    (see ``ssh.SimRunner``), so the SSH-data-plane features (firewall,
+    apply/diff, doctor --key, ...) run hardware-free as well.
 
-Only used by tests; never talks to a real network by itself (binds to
-127.0.0.1 on an ephemeral port).
+Only used by tests and local demos; never talks to a real network by itself
+(binds to 127.0.0.1 on an ephemeral port).
 
 Fidelity record (checked against a real FW_058 device on 2026-08-29):
   * VERIFIED: all ``nvget`` readouts return nginx 403 without an
@@ -30,6 +34,7 @@ Fidelity record (checked against a real FW_058 device on 2026-08-29):
 from __future__ import annotations
 
 import base64
+import copy
 import fnmatch
 import hashlib
 import json
@@ -194,29 +199,76 @@ class ShellError(Exception):
     pass
 
 
+class NetState:
+    """Mutable network/service state the virtual shell observes.
+
+    ``listening`` holds the TCP ports currently bound by virtual services
+    (only dropbear instances managed via uci + init.d ever appear here).
+    Interface readouts (``ip addr``, ``ifstatus``) come from a fixed profile
+    seeded at construction; they intentionally describe a CGNAT/private WAN
+    so doctor/wanwatch report the realistic "private-RFC1918" outcome.
+    """
+
+    def __init__(self) -> None:
+        self.listening: set[int] = set()
+
+
 class VirtualShell:
     """Restricted shell subset over an in-memory filesystem.
 
-    Supports exactly the commands the toolkit injects: sleep, test/[,
-    grep (-q/-F/-x/-v), echo/printf, tee, cat, rm, md5/md5sum, base64 -d,
-    mkdir, touch, true/false — plus pipes, && / || / ; chaining and
-    > / >> redirection. Files are ``path -> bytes``.
+    Supports the commands the toolkit injects or runs over (simulated) SSH:
+    sleep, test/[, grep (-q/-F/-x/-v/-E/-f), sed (s///, -i), cut, echo/printf,
+    tee, cat, cp, mv, rm, chmod, touch, mkdir, md5/md5sum, base64 -d, id,
+    true/false, a uci subset (show/add/set/rename/delete/commit/revert/
+    export/import) over a staged+committed config model, netstat -tln,
+    /etc/init.d/<svc> restart, iptables-save/ip6tables-save -c (synthesized
+    from the committed firewall config), ifstatus and ip addr — plus pipes,
+    && / || / ; chaining, > / >> / < redirection and 2>/dev/null, 2>&1.
+    Files are ``path -> bytes``.
     """
 
-    def __init__(self, time_scale: float = 1.0) -> None:
-        self.fs: dict[str, bytes] = {}
-        self.dirs: set[str] = {"/", "/tmp", "/etc"}
+    def __init__(self, time_scale: float = 1.0, net: NetState | None = None) -> None:
+        self.fs: dict[str, bytes] = {
+            "/etc/passwd": (b"root:!:0:0:root:/root:/bin/restricted_shell\n"
+                            b"daemon:*:1:1:daemon:/var:/bin/false\n"
+                            b"nobody:*:99:99:nobody:/var:/bin/false\n"),
+        }
+        self.dirs: set[str] = {"/", "/tmp", "/etc", "/etc/config",
+                               "/etc/dropbear", "/root"}
         self.time_scale = time_scale
         self.lock = threading.RLock()
+        self.net = net or NetState()
+        # uci config model: cfg -> {"committed": [sections], "staged": [...]}
+        # section: {"name": str|None, "type": str, "options": {str: str}}
+        stock_dropbear = [{"name": None, "type": "dropbear", "options": {
+            "enable": "0", "Port": "22", "PasswordAuth": "on"}}]
+        stock_firewall = [
+            {"name": None, "type": "defaults",
+             "options": {"syn_flood": "1", "input": "ACCEPT",
+                         "output": "ACCEPT", "forward": "REJECT"}},
+            {"name": None, "type": "zone",
+             "options": {"input": "ACCEPT", "output": "ACCEPT",
+                         "forward": "ACCEPT"}},
+            {"name": None, "type": "zone",
+             "options": {"input": "REJECT", "output": "ACCEPT",
+                         "forward": "REJECT", "masq": "1"}},
+        ]
+        self.uci: dict[str, dict] = {
+            "dropbear": {"committed": copy.deepcopy(stock_dropbear),
+                         "staged": copy.deepcopy(stock_dropbear)},
+            "firewall": {"committed": copy.deepcopy(stock_firewall),
+                         "staged": copy.deepcopy(stock_firewall)},
+        }
 
     # ---- parsing helpers ----
 
     @staticmethod
     def _split_top(text: str, seps: tuple[str, ...]) -> list[tuple[str, str]]:
-        """Split on shell operators outside quotes; returns (op, segment)."""
+        """Split on shell operators outside quotes/parens; returns (op, segment)."""
         out: list[tuple[str, str]] = []
         buf: list[str] = []
         quote = None
+        depth = 0
         i = 0
         op = ""
         while i < len(text):
@@ -232,7 +284,18 @@ class VirtualShell:
                 buf.append(ch)
                 i += 1
                 continue
-            hit = next((s for s in seps if text.startswith(s, i)), None)
+            if ch == "(":
+                depth += 1
+                buf.append(ch)
+                i += 1
+                continue
+            if ch == ")":
+                depth -= 1
+                buf.append(ch)
+                i += 1
+                continue
+            hit = depth == 0 and next(
+                (s for s in seps if text.startswith(s, i)), None)
             if hit:
                 out.append((op, "".join(buf)))
                 buf = []
@@ -253,8 +316,12 @@ class VirtualShell:
     # ---- entry point ----
 
     def run(self, command: str) -> int:
+        return self.run_capture(command)[0]
+
+    def run_capture(self, command: str) -> tuple[int, bytes]:
         command = command.replace("${IFS}", " ")
         status = 0
+        output = b""
         for op, segment in self._split_top(command, ("&&", "||", ";")):
             segment = segment.strip()
             if not segment:
@@ -263,11 +330,41 @@ class VirtualShell:
                 continue
             if op == "||" and status == 0:
                 continue
-            status = self._pipeline(segment)
-        return status
+            status, data = self._pipeline(segment)
+            output += data
+        return status, output
 
-    def _pipeline(self, segment: str) -> int:
-        # top-level redirection applies to the whole pipeline's stdout
+    def _pipeline(self, segment: str) -> tuple[int, bytes]:
+        # strip one pair of balanced outer parentheses: ( a || b )
+        if segment.startswith("(") and segment.endswith(")"):
+            depth = 0
+            balanced = True
+            for i, ch in enumerate(segment):
+                if ch == "(":
+                    depth += 1
+                elif ch == ")":
+                    depth -= 1
+                    if depth == 0 and i != len(segment) - 1:
+                        balanced = False
+                        break
+            if balanced and depth == 0:
+                segment = segment[1:-1].strip()
+        # stderr handling: 2>&1 merges into stdout (we fold it away),
+        # 2>target discards stderr (we do not model stderr separately)
+        segment = segment.replace("2>&1", " ")
+        parts = self._split_top(segment, ("2>",))
+        if len(parts) > 1:
+            segment = parts[0][1]
+        # stdin redirection: cmd < file
+        stdin: bytes | None = None
+        parts = self._split_top(segment, ("<",))
+        if len(parts) > 1:
+            segment = parts[0][1]
+            src = parts[-1][1].strip()
+            src = shlex.split(src)[0] if src else ""
+            if src:
+                stdin = self._read(src)
+        # stdout redirection applies to the whole pipeline
         redirect = None  # (mode, path)
         for redir in (">>", ">"):
             parts = self._split_top(segment, (redir,))
@@ -277,33 +374,38 @@ class VirtualShell:
                 redirect = (redir, shlex.split(target)[0] if target else "")
                 break
         stages = [s for _, s in self._split_top(segment, ("|",))]
-        data = b""
+        data = b"" if stdin is None else stdin
         status = 0
-        for stage in stages:
+        for i, stage in enumerate(stages):
             try:
                 argv = shlex.split(stage)
             except ValueError:
-                return 127
+                return 127, b""
             if not argv:
                 continue
             status, data = self._exec(argv, data)
         if redirect:
             mode, path = redirect
             if not path:
-                return 1
+                return 1, b""
+            if path == "/dev/null":
+                return status, b""
             with self.lock:
                 if mode == ">>":
                     self.fs[path] = self.fs.get(path, b"") + data
                 else:
                     self.fs[path] = data
             self._parent_dirs(path)
-        return status
+            return status, b""
+        return status, data
 
     # ---- builtins ----
 
     def _exec(self, argv: list[str], stdin: bytes) -> tuple[int, bytes]:
         name = argv[0]
         args = argv[1:]
+        if name.startswith("/etc/init.d/"):
+            return self._cmd_initd(name.rsplit("/", 1)[-1], args)
         try:
             handler = getattr(self, "_cmd_" + name.replace("-", "_"))
         except AttributeError:
@@ -442,6 +544,9 @@ class VirtualShell:
         if not args:
             return 0, b""
         fmt, values = args[0], args[1:]
+        # POSIX printf interprets backslash escapes in the format string
+        fmt = fmt.replace("\\n", "\n").replace("\\t", "\t").replace("\\\\", "\0")
+        fmt = fmt.replace("\0", "\\")
         out = ""
         used = 0
         i = 0
@@ -500,41 +605,422 @@ class VirtualShell:
         return status, out.encode()
 
     def _cmd_grep(self, args, stdin):
-        quiet = fixed = whole_line = invert = False
+        quiet = fixed = whole_line = invert = extended = False
         rest = list(args)
+        pattern_file = None
         while rest and rest[0].startswith("-") and rest[0] != "-":
+            if rest[0] == "-f":
+                rest.pop(0)
+                if not rest:
+                    raise ShellError("grep -f")
+                pattern_file = rest.pop(0)
+                continue
             flags = rest.pop(0)[1:]
+            if not flags:
+                break
             quiet = quiet or "q" in flags
             fixed = fixed or "F" in flags
             whole_line = whole_line or "x" in flags
             invert = invert or "v" in flags
-        if not rest:
-            raise ShellError("grep")
-        pattern, paths = rest[0], rest[1:]
+            extended = extended or "E" in flags
+        if pattern_file is not None:
+            patterns = [p for p in self._read(pattern_file)
+                        .decode("latin-1").splitlines() if p != ""]
+            if not patterns:
+                return 1, b""
+        else:
+            if not rest:
+                raise ShellError("grep")
+            patterns = [rest.pop(0)]
+        data = b""
+        if rest:
+            for path in rest:
+                data += self._read(path)
+        else:
+            data = stdin
+        text = data.decode("latin-1")
+        lines = text.split("\n")
+        if lines and lines[-1] == "":
+            lines.pop()  # trailing newline is a terminator, not an empty line
+
+        def matched(line: str) -> bool:
+            for pattern in patterns:
+                if fixed:
+                    hit = line == pattern if whole_line else pattern in line
+                else:
+                    # translate the BRE \\( \\) groups the toolkit emits
+                    pat = pattern if extended else pattern.replace(
+                        "\\(", "(").replace("\\)", ")")
+                    try:
+                        rx = re.compile(pat)
+                    except re.error:
+                        rx = re.compile(re.escape(pat))
+                    hit = bool(rx.fullmatch(line) if whole_line else rx.search(line))
+                if hit:
+                    return not invert
+            return invert
+
+        hits = [line for line in lines if matched(line)]
+        if quiet:
+            return (0 if hits else 1), b""
+        out = ("\n".join(hits) + "\n").encode() if hits else b""
+        return (0 if hits else 1), out
+    # ---- file utilities added for the SSH-data-plane commands ----
+
+    def _cmd_cp(self, args, stdin):
+        paths = [a for a in args if not a.startswith("-")]
+        if len(paths) != 2:
+            raise ShellError("cp")
+        self._write(paths[1], self._read(paths[0]))
+        return 0, b""
+
+    def _cmd_mv(self, args, stdin):
+        paths = [a for a in args if not a.startswith("-")]
+        if len(paths) != 2:
+            raise ShellError("mv")
+        self._write(paths[1], self._read(paths[0]))
+        with self.lock:
+            self.fs.pop(paths[0], None)
+        return 0, b""
+
+    def _cmd_chmod(self, args, stdin):
+        # permissions are not modelled; accept if all target paths exist
+        paths = [a for a in args if not a.startswith("-")
+                 and not a[0].isdigit()]
+        with self.lock:
+            for path in paths:
+                if path not in self.fs and path not in self.dirs:
+                    return 1, b""
+        return 0, b""
+
+    def _cmd_cut(self, args, stdin):
+        delim = "\t"
+        fields = None
+        i = 0
+        while i < len(args):
+            if args[i] == "-d" and i + 1 < len(args):
+                delim = args[i + 1]
+                i += 2
+            elif args[i].startswith("-d"):
+                delim = args[i][2:]
+                i += 1
+            elif args[i] == "-f" and i + 1 < len(args):
+                fields = args[i + 1]
+                i += 2
+            elif args[i].startswith("-f"):
+                fields = args[i][2:]
+                i += 1
+            else:
+                i += 1
+        if fields is None:
+            raise ShellError("cut")
+        wanted = {int(f) for f in fields.split(",")}
+        out = []
+        for line in stdin.decode("latin-1").split("\n"):
+            if line == "":
+                continue
+            parts = line.split(delim)
+            out.append(delim.join(p for n, p in enumerate(parts,  1)
+                                  if n in wanted))
+        return 0, ("\n".join(out) + "\n").encode() if out else b""
+
+    def _cmd_id(self, args, stdin):
+        return 0, b"uid=0(root) gid=0(root) groups=0(root)\n"
+
+    def _cmd_sed(self, args, stdin):
+        in_place = False
+        script = None
+        paths = []
+        for arg in args:
+            if arg == "-i":
+                in_place = True
+            elif arg == "-e":
+                continue
+            elif script is None and arg.startswith("s") and len(arg) > 2:
+                script = arg
+            elif script is not None and not arg.startswith("-"):
+                paths.append(arg)
+            elif arg.startswith("s") and len(arg) > 2:
+                script = arg
+            elif not arg.startswith("-"):
+                paths.append(arg)
+        if script is None:
+            raise ShellError("sed")
+        delim = script[1]
+        parts = script[2:].split(delim)
+        if len(parts) < 2:
+            raise ShellError("sed script")
+        pat, repl = parts[0], parts[1]
+        # translate the BRE groups the toolkit emits: \( \) and \1 backrefs
+        pat = pat.replace("\\(", "(").replace("\\)", ")")
+        repl = re.sub(r"\\([0-9])", r"\\g<\1>", repl)
+        try:
+            rx = re.compile(pat, re.MULTILINE)
+        except re.error:
+            raise ShellError("sed pattern")
         data = b""
         if paths:
             for path in paths:
                 data += self._read(path)
         else:
             data = stdin
-        text = data.decode("latin-1")
+        text = rx.sub(repl, data.decode("latin-1"))
+        if in_place and paths:
+            for path in paths:
+                self._write(path, text.encode())
+            return 0, b""
+        return 0, text.encode()
 
-        def matched(line: str) -> bool:
-            if fixed:
-                hit = line == pattern if whole_line else pattern in line
+    # ---- uci configuration model ----
+
+    def _uci_sections(self, cfg: str, staged: bool = True) -> list[dict]:
+        state = self.uci.setdefault(
+            cfg, {"committed": [], "staged": []})
+        return state["staged" if staged else "committed"]
+
+    def _uci_resolve(self, sections: list[dict], ref: str) -> dict | None:
+        m = re.fullmatch(r"@([A-Za-z0-9_-]+)\[(-?\d+)\]", ref)
+        if m:
+            stype, idx = m.group(1), int(m.group(2))
+            matches = [s for s in sections if s["type"] == stype
+                       and s["name"] is None]
+            try:
+                return matches[idx]
+            except IndexError:
+                return None
+        for s in sections:
+            if s["name"] == ref:
+                return s
+        return None
+
+    def _uci_show_lines(self, cfg: str, sections: list[dict]) -> list[str]:
+        lines = []
+        anon_count: dict[str, int] = {}
+        for s in sections:
+            if s["name"] is not None:
+                ref = s["name"]
             else:
-                try:
-                    rx = re.compile(pattern)
-                except re.error:
-                    rx = re.compile(re.escape(pattern))
-                hit = bool(rx.fullmatch(line) if whole_line else rx.search(line))
-            return hit != invert
+                idx = anon_count.get(s["type"], 0)
+                anon_count[s["type"]] = idx + 1
+                ref = f"@{s['type']}[{idx}]"
+            lines.append(f"{cfg}.{ref}={s['type']}")
+            for key, val in s["options"].items():
+                lines.append(f"{cfg}.{ref}.{key}='{val}'")
+        return lines
 
-        hits = [line for line in text.split("\n") if matched(line)]
-        if quiet:
-            return (0 if hits else 1), b""
-        out = ("\n".join(hits) + "\n").encode() if hits else b""
-        return (0 if hits else 1), out
+    def _cmd_uci(self, args, stdin):
+        quiet = False
+        rest = list(args)
+        while rest and rest[0].startswith("-"):
+            flags = rest.pop(0)[1:]
+            quiet = quiet or "q" in flags
+        if not rest:
+            raise ShellError("uci")
+        cmd, rest = rest[0], rest[1:]
+
+        if cmd == "show":
+            # uci [-q] show cfg[.section[.option]]
+            parts = rest[0].split(".")
+            cfg = parts[0]
+            sections = self._uci_sections(cfg)
+            if len(parts) >= 2:
+                sec = self._uci_resolve(sections, parts[1])
+                if sec is None:
+                    return 1, b""
+                if len(parts) >= 3:
+                    if parts[2] not in sec["options"]:
+                        return 1, b""
+                    val = sec["options"][parts[2]]
+                    return 0, f"{cfg}.{parts[1]}.{parts[2]}='{val}'\n".encode()
+                sections = [sec]
+            if cfg not in self.uci:
+                return 1, b""
+            lines = self._uci_show_lines(cfg, sections)
+            if not lines:
+                return 1, b""
+            return 0, ("\n".join(lines) + "\n").encode()
+
+        if cmd == "add":
+            cfg, stype = rest[0], rest[1]
+            self._uci_sections(cfg).append(
+                {"name": None, "type": stype, "options": {}})
+            return 0, b""
+
+        if cmd == "rename":
+            target, _, new_name = rest[0].partition("=")
+            cfg, _, ref = target.partition(".")
+            sec = self._uci_resolve(self._uci_sections(cfg), ref)
+            if sec is None or not new_name:
+                return 1, b""
+            sec["name"] = new_name
+            return 0, b""
+
+        if cmd == "set":
+            target, _, value = rest[0].partition("=")
+            parts = target.split(".")
+            if len(parts) != 3:
+                return 1, b""
+            cfg, ref, opt = parts
+            sec = self._uci_resolve(self._uci_sections(cfg), ref)
+            if sec is None:
+                return 1, b""
+            sec["options"][opt] = value.strip("'")
+            return 0, b""
+
+        if cmd == "delete":
+            parts = rest[0].split(".")
+            cfg = parts[0]
+            sections = self._uci_sections(cfg)
+            if len(parts) == 2:
+                sec = self._uci_resolve(sections, parts[1])
+                if sec is None:
+                    return 0 if quiet else 1, b""
+                sections.remove(sec)
+                return 0, b""
+            if len(parts) == 3:
+                sec = self._uci_resolve(sections, parts[1])
+                if sec is None or parts[2] not in sec["options"]:
+                    return 0 if quiet else 1, b""
+                del sec["options"][parts[2]]
+                return 0, b""
+            return 1, b""
+
+        if cmd == "commit":
+            state = self.uci.get(rest[0])
+            if state is None:
+                return 1, b""
+            state["committed"] = copy.deepcopy(state["staged"])
+            return 0, b""
+
+        if cmd == "revert":
+            state = self.uci.get(rest[0])
+            if state is None:
+                return 0 if quiet else 1, b""
+            state["staged"] = copy.deepcopy(state["committed"])
+            return 0, b""
+
+        if cmd == "export":
+            cfg = rest[0]
+            sections = self._uci_sections(cfg, staged=False)
+            out = [f"package '{cfg}'", ""]
+            for s in sections:
+                name = f" '{s['name']}'" if s["name"] else ""
+                out.append(f"config {s['type']}{name}")
+                for key, val in s["options"].items():
+                    out.append(f"\toption {key} '{val}'")
+                out.append("")
+            return 0, ("\n".join(out) + "\n").encode()
+
+        if cmd == "import":
+            cfg = rest[0]
+            sections: list[dict] = []
+            current = None
+            for raw in stdin.decode("latin-1").splitlines():
+                line = raw.strip()
+                if line.startswith("config "):
+                    tokens = shlex.split(line)
+                    current = {"name": tokens[2] if len(tokens) > 2 else None,
+                               "type": tokens[1], "options": {}}
+                    sections.append(current)
+                elif line.startswith("option ") and current is not None:
+                    tokens = shlex.split(line)
+                    current["options"][tokens[1]] = tokens[2]
+            self.uci[cfg] = {"committed": copy.deepcopy(sections),
+                             "staged": sections}
+            return 0, b""
+
+        return 1, b""
+
+    # ---- network/service state commands ----
+
+    def _cmd_initd(self, service: str, args):
+        action = args[0] if args else "restart"
+        if service == "dropbear" and action in ("start", "restart", "reload"):
+            ports = set()
+            for s in self._uci_sections("dropbear", staged=False):
+                if s["type"] == "dropbear" and \
+                        s["options"].get("enable", "1") == "1":
+                    try:
+                        ports.add(int(s["options"].get("Port", "22")))
+                    except ValueError:
+                        pass
+            with self.lock:
+                self.net.listening = ports
+        elif service == "dropbear" and action == "stop":
+            with self.lock:
+                self.net.listening = set()
+        return 0, b""
+
+    def _cmd_netstat(self, args, stdin):
+        out = []
+        with self.lock:
+            ports = sorted(self.net.listening)
+        for port in ports:
+            out.append(f"tcp        0      0 0.0.0.0:{port}"
+                       "            0.0.0.0:*               LISTEN")
+        return (0 if out else 1), ("\n".join(out) + "\n").encode() if out else b""
+
+    def _iptables_dump(self, family: str) -> bytes:
+        lines = ["*filter", ":zone_wan_forward - [0:0]"]
+        for s in self._uci_sections("firewall", staged=False):
+            if s["type"] != "rule":
+                continue
+            o = s["options"]
+            if o.get("enabled", "1") == "0" or o.get("src") != "wan":
+                continue
+            fam = o.get("family", "any")
+            if fam not in (family, "any"):
+                continue
+            name = o.get("name", "")
+            protos = ("tcp", "udp") if o.get("proto") == "tcpudp" \
+                else (o.get("proto", "all"),)
+            for proto in protos:
+                rule = f"[0:0] -A zone_wan_forward -p {proto}"
+                if o.get("dest_ip"):
+                    rule += f" -d {o['dest_ip']}"
+                if o.get("dest_port"):
+                    rule += f" --dport {o['dest_port']}"
+                rule += (f" -m comment --comment \"!fw3: {name}\""
+                         f" -j {o.get('target', 'ACCEPT')}")
+                lines.append(rule)
+        lines.append("COMMIT")
+        return ("\n".join(lines) + "\n").encode()
+
+    def _cmd_iptables_save(self, args, stdin):
+        return 0, self._iptables_dump("ipv4")
+
+    def _cmd_ip6tables_save(self, args, stdin):
+        return 0, self._iptables_dump("ipv6")
+
+    def _cmd_ip(self, args, stdin):
+        # ip -4|-6 addr show dev IFACE
+        family = args[0] if args else "-4"
+        dev = args[-1] if args else ""
+        if family == "-4":
+            if dev == "veip0_1":
+                return 0, (b"3: veip0_1: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500\n"
+                           b"    inet 10.73.50.23 brd 10.73.255.255 scope global veip0_1\n"
+                           b"       valid_lft forever preferred_lft forever\n")
+            return 1, b""
+        if family == "-6":
+            if dev == "br-lan":
+                return 0, (b"2: br-lan: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500\n"
+                           b"    inet6 2001:db8:100::1/64 scope global\n"
+                           b"       valid_lft forever preferred_lft forever\n")
+            return 1, b""
+        return 1, b""
+
+    def _cmd_ifstatus(self, args, stdin):
+        iface = args[0] if args else ""
+        if iface == "wan6":
+            return 0, json.dumps({
+                "up": True,
+                "ipv6-prefix-assignment": [
+                    {"address": "2001:db8:100::", "mask": 56}],
+            }).encode() + b"\n"
+        if iface == "6rd":
+            return 0, b'{"up": false}\n'
+        return 0, b'{"up": false}\n'
 
 
 class FakeGateway:
@@ -552,7 +1038,8 @@ class FakeGateway:
         self.fw_version = fw_version or self.profile.firmware
         self.session_ttl = session_ttl
         self.auto_press_delay = auto_press_delay
-        self.shell = VirtualShell(time_scale=time_scale)
+        self.net = NetState()
+        self.shell = VirtualShell(time_scale=time_scale, net=self.net)
         self._lock = threading.RLock()
         self._diag_lock = threading.Lock()
         self._sessions: dict[str, dict] = {}
@@ -600,6 +1087,11 @@ class FakeGateway:
 
     def read_file(self, path: str) -> bytes:
         return self.shell.fs[path]
+
+    def exec_local(self, command: str) -> tuple[int, str]:
+        """Run a command in the virtual shell; backs the /__sim__/exec endpoint."""
+        rc, out = self.shell.run_capture(command)
+        return rc, out.decode("latin-1")
 
     def press_buttons(self) -> None:
         """Simulate the physical both-buttons-for-3s press."""
@@ -762,6 +1254,7 @@ class _GatewayHandler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
+        self.send_header("X-Homeware-Simulator", self.fake.profile.name)
         for key, value in (extra_headers or {}).items():
             self.send_header(key, value)
         self.end_headers()
@@ -769,6 +1262,19 @@ class _GatewayHandler(BaseHTTPRequestHandler):
 
     def _send_json(self, status: int, payload: dict) -> None:
         self._send(status, json.dumps(payload).encode(), "application/json")
+
+    def do_POST(self) -> None:
+        # Loopback-only escape hatch used by the toolkit's simulated-SSH
+        # transport: execute a command in the virtual shell and return its
+        # stdout. A real gateway never serves this path.
+        parsed = urllib.parse.urlparse(self.path)
+        if parsed.path == "/__sim__/exec":
+            length = int(self.headers.get("Content-Length", "0"))
+            command = self.rfile.read(length).decode("utf-8")
+            rc, out = self.fake.exec_local(command)
+            self._send_json(200, {"rc": rc, "stdout": out})
+            return
+        self._send(404, b"not found", "text/plain")
 
     def do_GET(self) -> None:
         parsed = urllib.parse.urlparse(self.path)

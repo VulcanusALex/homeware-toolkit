@@ -89,8 +89,12 @@ def _validate_dest_port(dest_port: str) -> str:
 
 class FW:
     def __init__(self, host: str, port: int, key: str,
-                 device: "Device" | None = None) -> None:
+                 device: "Device" | None = None, runner=None) -> None:
         self.host, self.port, self.key = host, port, key
+        # runner(cmd, timeout) -> CompletedProcess; defaults to real SSH.
+        # The CLI injects a simulator runner when the target is the bundled
+        # fake gateway.
+        self.runner = runner
         # Device capabilities select the firewall backend.  Currently only UCI
         # is implemented; the seam lets future drivers declare nftables/iptables
         # backends without changing the CLI.
@@ -105,14 +109,16 @@ class FW:
                 f"{self.device.name!r}; only 'uci' is currently implemented")
 
     def run(self, cmd: str) -> str:
-        proc = ssh_run(self.host, self.port, self.key, cmd, timeout=60)
+        proc = (self.runner(cmd, timeout=60) if self.runner is not None
+                else ssh_run(self.host, self.port, self.key, cmd, timeout=60))
         if proc.returncode != 0:
             raise RuntimeError(proc.stderr.strip() or f"exit {proc.returncode}")
         return proc.stdout
 
     def list_rules(self) -> list[dict]:
+        # `|| true`: an empty match set (no named rules) exits 1 under grep
         out = self.run(
-            "uci show firewall | grep -E '^firewall\\..*\\.(name|src|dest|proto|family|dest_ip|dest_port|target|enabled)='")
+            "uci show firewall | grep -E '^firewall\\..*\\.(name|src|dest|proto|family|dest_ip|dest_port|target|enabled)=' || true")
         rules: dict[str, dict] = {}
         for line in out.splitlines():
             m = re.match(r"firewall\.([^.=]+)\.([a-z_]+)='?(.*?)'?$", line.strip())
@@ -291,7 +297,7 @@ class FW:
     def delete(self, name: str) -> list[str]:
         if not NAME_RE.match(name):
             raise RuntimeError("rule name must be [A-Za-z0-9_-]{1,32}")
-        out = self.run(f"uci show firewall | grep -E \"name='{name}'\" | cut -d. -f2")
+        out = self.run(f"uci show firewall | grep -E \"name='{name}'\" | cut -d. -f2 || true")
         sections = [self._validate_section(s.strip()) for s in out.splitlines()
                     if s.strip()]
         for s in sections:

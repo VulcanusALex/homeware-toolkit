@@ -293,6 +293,7 @@ def make_handler(state: WizardState):
 
             if path == "/api/setup":
                 from .setup import run_setup
+                from .ssh import make_runner
                 # The wizard UI itself is the explicit consent, so run_setup
                 # must not block on a terminal prompt.  Failures are reported
                 # in the JSON payload (code != 0) so the browser can render
@@ -301,7 +302,10 @@ def make_handler(state: WizardState):
                     result, code = run_setup(
                         state.base_url, state.port, state.key_path,
                         assume_yes=True, force=False, adopt_legacy=False,
-                        log=lambda _m: None)
+                        log=lambda _m: None,
+                        runner=make_runner(state.base_url, state.port,
+                                           state.key_path,
+                                           log=lambda _m: None))
                     _json_response(self, {"result": result, "code": code})
                 except Exception as exc:
                     _json_response(self, {"result": str(exc), "code": 1})

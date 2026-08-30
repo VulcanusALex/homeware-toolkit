@@ -19,7 +19,7 @@ def _check(items: list[dict], name: str, ok: bool, detail: str,
 def run_audit(base_url: str, port: int, key: str,
               state_file: str = "~/.homeware-toolkit/audit-state.json",
               accept_change: bool = False,
-              device=None) -> tuple[dict, int]:
+              device=None, runner=None) -> tuple[dict, int]:
     checks: list[dict] = []
     probe = run_probe(base_url)
     signal = probe["analysis"]["compatibility_signal"]
@@ -33,11 +33,12 @@ def run_audit(base_url: str, port: int, key: str,
     ssh_instance = device.cap("ssh", "instance", default="nx")
 
     host = host_of(base_url)
-    proc = ssh_run(
-        host, port, key,
+    audit_cmd = (
         "printf '%s\\n' __SHELL__; grep '^root:' /etc/passwd; "
         f"printf '%s\\n' __DROPBEAR__; uci -q show {ssh_service}.{ssh_instance}; "
         f"printf '%s\\n' __STATE__; test -s {STATE_DIR}/{ssh_service}.{ssh_instance}.owned && echo managed")
+    proc = (runner(audit_cmd) if runner is not None
+            else ssh_run(host, port, key, audit_cmd))
     ssh_ok = proc.returncode == 0
     _check(checks, "ssh-handshake", ssh_ok,
            "reachable with key" if ssh_ok else (proc.stderr.strip() or "failed"),
@@ -57,7 +58,7 @@ def run_audit(base_url: str, port: int, key: str,
 
     firewall_report = None
     if ssh_ok:
-        firewall_report = FW(host, port, key).audit()
+        firewall_report = FW(host, port, key, runner=runner).audit()
         _check(checks, "firewall-audit", firewall_report["ok"],
                f"{len(firewall_report['findings'])} finding(s)",
                "run 'homeware fw audit --json' and narrow broad WAN rules")

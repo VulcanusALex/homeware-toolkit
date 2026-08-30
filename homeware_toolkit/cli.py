@@ -268,17 +268,22 @@ def main(argv: list[str] | None = None) -> int:
                     args.base_url, port=args.port, key=args.key,
                     tls_fingerprint=args.tls_fingerprint)
             from .setup import run_setup
+            from .ssh import make_runner as _mk_runner
             result, code = run_setup(
                 args.base_url, args.port, args.key, assume_yes=args.yes,
-                force=args.force, adopt_legacy=args.adopt_legacy, log=log)
+                force=args.force, adopt_legacy=args.adopt_legacy, log=log,
+                runner=_mk_runner(args.base_url, args.port, args.key, log=log))
             return rep.out(result, code)
 
         if args.command == "doctor":
             from . import doctor as doctor_mod
+            from .ssh import make_runner as _mk_runner
+            runner = (_mk_runner(args.base_url, args.port, args.key, log=log)
+                      if args.key else None)
             stages, code = doctor_mod.run_doctor(
                 args.base_url, args.port, key=args.key,
                 check_injection=not args.no_injection,
-                check_egress=args.check_egress, log=log)
+                check_egress=args.check_egress, log=log, runner=runner)
             return rep.out({"stages": stages}, code)
 
         if args.command == "session":
@@ -354,7 +359,9 @@ def main(argv: list[str] | None = None) -> int:
                     f"-o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedKeyTypes=+ssh-rsa root@{host}")
                 if args.test and not args.dry_run:
                     priv = args.privkey or args.pubkey.removesuffix(".pub")
-                    proc = ssh_mod.ssh_run(host, args.port, priv, "echo SSH_OK; id")
+                    runner = ssh_mod.make_runner(args.base_url, args.port, priv,
+                                                 log=log)
+                    proc = runner("echo SSH_OK; id")
                     if "SSH_OK" not in proc.stdout:
                         print(f"[ssh] handshake FAILED: {proc.stderr.strip()}",
                               file=sys.stderr)
@@ -369,10 +376,10 @@ def main(argv: list[str] | None = None) -> int:
                         print(f"{k}: {v}")
                 return rep.out(st, 0 if st["listening"] else 1)
             if args.ssh_cmd == "run":
-                proc = ssh_mod.ssh_run(
-                    host_of(args.base_url), args.port, args.key,
-                    args.remote_command, timeout=args.timeout,
-                    verify_host_key=not args.no_verify_host_key)
+                runner = ssh_mod.make_runner(
+                    args.base_url, args.port, args.key,
+                    verify_host_key=not args.no_verify_host_key, log=log)
+                proc = runner(args.remote_command, timeout=args.timeout)
                 sys.stdout.write(proc.stdout)
                 sys.stderr.write(proc.stderr)
                 return proc.returncode
@@ -384,7 +391,10 @@ def main(argv: list[str] | None = None) -> int:
 
         if args.command == "fw":
             from .firewall import FW
-            fw = FW(host_of(args.base_url), args.port, args.key)
+            from .ssh import make_runner as _mk_runner
+            fw = FW(host_of(args.base_url), args.port, args.key,
+                    runner=_mk_runner(args.base_url, args.port, args.key,
+                                      log=log))
             if args.fw_cmd == "list":
                 rules = fw.list_rules()
                 if not args.json:
@@ -419,7 +429,10 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "inbound":
             from .firewall import FW
             from .inbound import observe
-            fw = FW(host_of(args.base_url), args.port, args.key)
+            from .ssh import make_runner as _mk_runner
+            fw = FW(host_of(args.base_url), args.port, args.key,
+                    runner=_mk_runner(args.base_url, args.port, args.key,
+                                      log=log))
             result = observe(fw, args.rule, args.wait, log=log)
             return rep.out(result, 0 if result["state"] == "confirmed-at-gateway" else 2)
 
@@ -433,8 +446,11 @@ def main(argv: list[str] | None = None) -> int:
 
         if args.command == "audit-update":
             from .audit import run_audit
-            result, code = run_audit(args.base_url, args.port, args.key,
-                                     args.state_file, args.accept_change)
+            from .ssh import make_runner as _mk_runner
+            result, code = run_audit(
+                args.base_url, args.port, args.key,
+                args.state_file, args.accept_change,
+                runner=_mk_runner(args.base_url, args.port, args.key, log=log))
             if not args.json:
                 for check in result["checks"]:
                     print(f"[{check['status']}] {check['check']}: {check['detail']}")
@@ -450,16 +466,21 @@ def main(argv: list[str] | None = None) -> int:
                 "wan4_interface": device.cap("wan", "wan4_interface"),
                 "lan6_interface": device.cap("wan", "lan6_interface"),
             }
-            report, code = ww_mod.watch(host_of(args.base_url), args.port, args.key,
-                                        os.path.expanduser(args.state_file),
-                                        notify=args.notify,
-                                        interfaces=interfaces)
+            from .ssh import make_runner as _mk_runner
+            report, code = ww_mod.watch(
+                host_of(args.base_url), args.port, args.key,
+                os.path.expanduser(args.state_file),
+                notify=args.notify, interfaces=interfaces,
+                runner=_mk_runner(args.base_url, args.port, args.key, log=log))
             return rep.out(report, code)
 
         if args.command in ("apply", "diff"):
             from . import apply as apply_mod
             from .firewall import FW
-            fw = FW(host_of(args.base_url), args.port, args.key)
+            from .ssh import make_runner as _mk_runner
+            fw = FW(host_of(args.base_url), args.port, args.key,
+                    runner=_mk_runner(args.base_url, args.port, args.key,
+                                      log=log))
             if args.command == "diff":
                 plan_dict, code = apply_mod.run_diff(fw, args.file)
                 if not args.json:
@@ -469,7 +490,7 @@ def main(argv: list[str] | None = None) -> int:
             if not args.json:
                 print(f"[apply] applied={len(result['applied'])} "
                       f"unchanged={len(result['unchanged'])} "
-                      f"failed={len(result['failed'])} "
+                      f"failed={1 if result['failed'] else 0} "
                       f"checks_failed={len(result['checks_failed'])}")
             return rep.out(result, code)
 
@@ -486,7 +507,10 @@ def main(argv: list[str] | None = None) -> int:
                     raise RuntimeError(
                         "--server-ipv6 is required for the pinhole "
                         "(or pass --no-pinhole to only render configs)")
-                fw = FW(host_of(args.base_url), args.port, args.key)
+                from . import ssh as ssh_mod
+                fw = FW(host_of(args.base_url), args.port, args.key,
+                        runner=ssh_mod.make_runner(args.base_url, args.port,
+                                                   args.key, log=log))
             result = vpn_mod.bootstrap_wireguard(
                 fw, os.path.expanduser(args.out_dir),
                 server_ipv6=args.server_ipv6,
@@ -523,7 +547,9 @@ def main(argv: list[str] | None = None) -> int:
                     os.path.expanduser(args.state_file)))
             if args.key:
                 inj = Injector(make_client(), force=True, log=lambda m: None)
-                fw = FW(host_of(args.base_url), args.port, args.key)
+                fw = FW(host_of(args.base_url), args.port, args.key,
+                        runner=ssh_mod.make_runner(args.base_url, args.port,
+                                                   args.key, log=log))
                 providers.ssh_status = lambda: ssh_mod.status(inj, args.port)
                 providers.fw_rules = fw.list_rules
             return rep.out({"dashboard": True},
@@ -537,7 +563,8 @@ def main(argv: list[str] | None = None) -> int:
                        }[args.profile]
             gateway = simulator.FakeGateway(time_scale=args.time_scale,
                                             auto_press_delay=args.auto_press_delay,
-                                            profile=profile)
+                                            profile=profile,
+                                            session_ttl=3600.0)
             gateway.start()
             print(f"[simulate] fake {profile.name} listening on "
                   f"{gateway.base_url} (Ctrl-C to stop)")

@@ -276,6 +276,71 @@ class GatewayClient:
                 log("[login] button press detected")
         return False
 
+    def srp6_login(self, username: str, password: str, log=print) -> bool:
+        """Vodafone-style SRP-6 password login (two-step /authenticate).
+
+        Used by Homeware devices whose ``auth.method`` capability is
+        ``srp6`` (e.g. the Vodafone VCNT-I family) instead of the NeXXt
+        physical-button handshake.  Verifies the server's proof, so a
+        wrong password on either side fails closed.
+        """
+        from . import srp6
+
+        self.jar.clear()
+        with self.opener.open(f"{self.base_url}/login",
+                              timeout=self.timeout) as resp:
+            html = resp.read(500_000).decode("utf-8", errors="replace")
+        self.save_cookies()
+        match = re.search(
+            r'name=["\']CSRFtoken["\'] content=["\']([0-9a-f]+)["\']', html)
+        if not match:
+            raise RuntimeError(
+                "no CSRFtoken on the login page — this device does not "
+                "speak the SRP6 password flow (try button login)")
+        token = match.group(1)
+
+        usr = srp6.Client(username.encode(), password.encode())
+        status, data = self._post_form("/authenticate", {
+            "CSRFtoken": token, "I": username,
+            "A": usr.public_ephemeral().hex()})
+        if status != 200 or "s" not in data or "B" not in data:
+            log(f"[login] SRP6 challenge rejected (http {status}): {data}")
+            return False
+        try:
+            proof = usr.process_challenge(bytes.fromhex(data["s"]),
+                                          bytes.fromhex(data["B"]))
+        except (ValueError, KeyError) as exc:
+            raise RuntimeError(f"bad SRP6 challenge: {exc}") from exc
+        status, data = self._post_form("/authenticate", {
+            "CSRFtoken": token, "M": proof.hex()})
+        if status != 200 or "M" not in data:
+            log(f"[login] SRP6 proof rejected (http {status}); "
+                "wrong password?")
+            return False
+        if not usr.verify_server(bytes.fromhex(data["M"])):
+            log("[login] SRP6 server proof mismatch")
+            return False
+        self.save_cookies()
+        return True
+
+    def _post_form(self, path: str, fields: dict) -> tuple[int, dict]:
+        body = urllib.parse.urlencode(fields).encode()
+        req = urllib.request.Request(
+            self.base_url + path, data=body,
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            method="POST")
+        try:
+            with self.opener.open(req, timeout=self.timeout) as resp:
+                payload = resp.read(100_000).decode("utf-8", errors="replace")
+                status = resp.status
+        except urllib.error.HTTPError as exc:
+            return exc.code, {"http_error": exc.code}
+        self.save_cookies()
+        try:
+            return status, json.loads(payload)
+        except ValueError:
+            return status, {"raw_body": payload[:2000]}
+
     def import_cookie(self, source: str) -> bool:
         """Import sessionID from a HAR export path or a raw cookie value."""
         sid = None

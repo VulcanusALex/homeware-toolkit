@@ -94,6 +94,11 @@ def build_parser() -> argparse.ArgumentParser:
     sess_sub = p_sess.add_subparsers(dest="session_cmd", required=True)
     s_login = sess_sub.add_parser("login", help="button-assisted login")
     s_login.add_argument("--wait", type=int, default=60)
+    s_login.add_argument("--username", default="vodafone",
+                         help="SRP6 login username (Vodafone-style devices)")
+    s_login.add_argument("--password",
+                         help="SRP6 login password; switches login from the "
+                              "physical-button handshake to SRP-6")
     sess_sub.add_parser("check")
     sess_sub.add_parser("dump")
     s_imp = sess_sub.add_parser("import-cookie")
@@ -297,6 +302,11 @@ def main(argv: list[str] | None = None) -> int:
                           f"{fp} <command>")
                 return rep.out({"tls_fingerprint": fp})
             if args.session_cmd == "login":
+                if args.password:
+                    ok = client.srp6_login(args.username, args.password,
+                                           log=log)
+                    log(f"[login] authenticated={ok}")
+                    return rep.out({"authenticated": ok}, 0 if ok else 1)
                 if client.is_authenticated():
                     log("[login] already authenticated")
                     return rep.out({"authenticated": True})
@@ -472,6 +482,15 @@ def main(argv: list[str] | None = None) -> int:
                 os.path.expanduser(args.state_file),
                 notify=args.notify, interfaces=interfaces,
                 runner=_mk_runner(args.base_url, args.port, args.key, log=log))
+            if not args.json:
+                if "error" in report:
+                    print(f"[wanwatch] error: {report['error']}")
+                else:
+                    print(f"[wanwatch] {report['mode']}  "
+                          f"wan_ipv4={report.get('wan_ipv4') or '-'} "
+                          f"({report.get('wan_ipv4_class', '?')})  "
+                          f"wan6={'up' if report.get('wan6_up') else 'down'}  "
+                          f"changed={report['changed_since_last_run']}")
             return rep.out(report, code)
 
         if args.command in ("apply", "diff"):

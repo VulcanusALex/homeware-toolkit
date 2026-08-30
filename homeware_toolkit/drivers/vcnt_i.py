@@ -10,10 +10,12 @@ Known differences from the NeXXt One (speculative):
 - Board family ``VCNT-I`` / ``VBNT-6`` instead of ``GDNT-S``.
 - WAN interfaces on Vodafone firmware are typically ``eth4`` (IPv4) and
   ``br-lan`` (IPv6 LAN).
-- Authentication on Vodafone devices is usually SRP6 password-based rather than
-  a physical button; this driver declares ``auth.method = "srp6"`` so the
-  toolkit can later special-case it.  Until SRP6 is implemented, privileged
-  operations will need ``--force``.
+- Authentication on Vodafone devices is SRP6 password-based (fixed legacy
+  multiplier, SHA-256, RFC 5054 2048-bit group) rather than a physical
+  button; implemented in ``srp6.py`` and reachable via
+  ``homeware session login --username vodafone --password <ui-password>``.
+  The simulator's ``generic_homeware`` profile speaks the same handshake, so
+  the flow is integration-tested — but no real VCNT-I has confirmed it yet.
 - The command-injection surface may be a different diagnostic endpoint or may
   not exist on newer firmware.  The capabilities inherit the NeXXt defaults so
   tests can at least exercise the same code paths.
@@ -32,7 +34,8 @@ DRIVER_NAME = "vcnt_i"
 # Overrides from public Homeware references.  Everything else inherits NeXXt
 # defaults, which is intentionally conservative.
 VCNT_I_CAPABILITIES = {
-    "auth": {"method": "srp6", "service": "login_confirm"},
+    "auth": {"method": "srp6", "endpoint": "/authenticate",
+             "default_username": "vodafone"},
     "injection": {"service": "pingstatus"},
     "wan": {"wan4_interface": "eth4", "lan6_interface": "br-lan"},
 }

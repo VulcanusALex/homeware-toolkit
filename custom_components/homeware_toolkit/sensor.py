@@ -23,6 +23,8 @@ async def async_setup_entry(
             HomewareSensor(coordinator, "gateway", "Gateway"),
             HomewareSensor(coordinator, "wan_ipv4", "WAN IPv4"),
             HomewareSensor(coordinator, "wan_mode", "WAN Mode"),
+            HomewareSensor(coordinator, "ssh_service", "SSH Service"),
+            HomewareSensor(coordinator, "wan_ipv4_class", "WAN IPv4 Class"),
         ]
     )
 

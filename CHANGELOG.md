@@ -3,6 +3,24 @@
 All notable changes to this project are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/), versioning is semver.
 
+## [2.2.0] - 2026-08-30
+
+### Added
+- SRP-6 password login (`homeware_toolkit/srp6.py`): pure-stdlib client and
+  verifier implementing the Homeware/Vodafone variant (RFC 5054 2048-bit
+  group, SHA-256, legacy fixed multiplier).  `homeware session login
+  --username vodafone --password <pw>` authenticates Vodafone-family devices
+  through the two-step `/authenticate` CSRF handshake.  The simulator's
+  `generic_homeware` profile speaks the same flow, so it is covered by
+  integration tests (real VCNT-I hardware remains untested).
+- The Home Assistant integration now actually polls: a 5-minute coordinator
+  runs read-only `doctor`/`wanwatch` snapshots and feeds sensors for gateway
+  online state, WAN IPv4/mode/class and SSH service posture.
+
+### Fixed
+- `homeware wanwatch` printed nothing in text mode; it now renders a
+  one-line summary.
+
 ## [2.1.0] - 2026-08-30
 
 ### Added

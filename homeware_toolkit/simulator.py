@@ -67,8 +67,14 @@ class DeviceProfile:
     app_js: str
     shared_services_js: str
     status_service_js: str
+
     default_services: dict = field(default_factory=dict)
     injection_prefix: str = ":::::::;"
+    # "button" (NeXXt-style physical press) or "srp6" (Vodafone-style
+    # password SRP-6 against /authenticate with a CSRF token).
+    auth_method: str = "button"
+    srp6_username: str = "vodafone"
+    srp6_password: str = "vodafone"
 
     @property
     def static_assets(self) -> dict[str, tuple[str, str]]:
@@ -188,6 +194,7 @@ GENERIC_HOMEWARE_PROFILE = DeviceProfile(
         "virtual_server_list": {},
         "upnp_conf": {},
     },
+    auth_method="srp6",
 )
 
 # Backwards-compatible module-level defaults.
@@ -1036,6 +1043,12 @@ class FakeGateway:
         self.model = model or self.profile.model
         self.product = product or self.profile.product
         self.fw_version = fw_version or self.profile.firmware
+        # SRP-6 server state (only used when profile.auth_method == "srp6")
+        from . import srp6 as _srp6
+        self._srp6_salt, self._srp6_verifier = _srp6.make_verifier(
+            self.profile.srp6_username.encode(),
+            self.profile.srp6_password.encode())
+        self._srp6_pending: dict[str, object] = {}  # csrf token -> Server
         self.session_ttl = session_ttl
         self.auto_press_delay = auto_press_delay
         self.net = NetState()
@@ -1141,6 +1154,57 @@ class FakeGateway:
             session["auth_time"] = time.time()
             self._armed = False
             self._button_pressed = False
+
+    # ---- SRP-6 password login (Vodafone-style /authenticate) ----
+
+    def new_csrf_token(self) -> str:
+        token = secrets.token_hex(16)
+        with self._lock:
+            self._srp6_pending[token] = None
+        return token
+
+    def handle_authenticate(self, params: dict[str, str],
+                            sid: str | None) -> tuple[int, dict]:
+        """Two-step SRP-6 handshake: {I, A} -> {s, B}; then {M} -> {M2}."""
+        from . import srp6 as _srp6
+        token = params.get("CSRFtoken", "")
+        with self._lock:
+            pending = self._srp6_pending
+            if token not in pending:
+                return 403, {"error": "bad CSRF token"}
+            entry = pending[token]
+        username = params.get("I")
+        a_hex = params.get("A")
+        m_hex = params.get("M")
+        if username is not None and a_hex is not None:
+            if username != self.profile.srp6_username:
+                return 403, {"error": "unknown user"}
+            server = _srp6.Server(username.encode(), self._srp6_salt,
+                                  self._srp6_verifier)
+            try:
+                _, m2 = server.process(bytes.fromhex(a_hex))
+            except (ValueError, KeyError):
+                return 400, {"error": "bad ephemeral"}
+            with self._lock:
+                self._srp6_pending[token] = (server, m2)
+            return 200, {"s": self._srp6_salt.hex(),
+                         "B": server.public_ephemeral().hex()}
+        if m_hex is not None and entry is not None:
+            server, m2 = entry
+            try:
+                client_m = bytes.fromhex(m_hex)
+            except ValueError:
+                return 400, {"error": "bad proof"}
+            if client_m != server.M1_expected:
+                return 403, {"error": "400"}
+            session = self._session(sid)
+            if session is None:
+                return 403, {"error": "no session"}
+            with self._lock:
+                session["authenticated"] = True
+                session["auth_time"] = time.time()
+            return 200, {"M": m2.hex()}
+        return 400, {"error": "bad request"}
 
     # ---- ping diagnostic / injection ----
 
@@ -1264,15 +1328,26 @@ class _GatewayHandler(BaseHTTPRequestHandler):
         self._send(status, json.dumps(payload).encode(), "application/json")
 
     def do_POST(self) -> None:
-        # Loopback-only escape hatch used by the toolkit's simulated-SSH
-        # transport: execute a command in the virtual shell and return its
-        # stdout. A real gateway never serves this path.
         parsed = urllib.parse.urlparse(self.path)
         if parsed.path == "/__sim__/exec":
+            # Loopback-only escape hatch used by the toolkit's simulated-SSH
+            # transport: execute a command in the virtual shell and return
+            # its stdout. A real gateway never serves this path.
             length = int(self.headers.get("Content-Length", "0"))
             command = self.rfile.read(length).decode("utf-8")
             rc, out = self.fake.exec_local(command)
             self._send_json(200, {"rc": rc, "stdout": out})
+            return
+        if parsed.path == "/authenticate":
+            # SRP-6 password login (Vodafone-style profiles)
+            length = int(self.headers.get("Content-Length", "0"))
+            form = urllib.parse.parse_qs(
+                self.rfile.read(length).decode("utf-8"),
+                keep_blank_values=True)
+            params = {k: v[0] for k, v in form.items()}
+            status, payload = self.fake.handle_authenticate(
+                params, self._session_cookie())
+            self._send_json(status, payload)
             return
         self._send(404, b"not found", "text/plain")
 
@@ -1284,7 +1359,13 @@ class _GatewayHandler(BaseHTTPRequestHandler):
 
         if path == "/login":
             sid = self.fake._new_session()
-            self._send(200, self.fake.profile.login_html.encode(), "text/html",
+            html = self.fake.profile.login_html
+            if self.fake.profile.auth_method == "srp6":
+                token = self.fake.new_csrf_token()
+                html = html.replace(
+                    "</head>",
+                    f'<meta name="CSRFtoken" content="{token}"></head>')
+            self._send(200, html.encode(), "text/html",
                        {"Set-Cookie": f"sessionID={sid}; Path=/"})
             return
         assets = self.fake.profile.static_assets

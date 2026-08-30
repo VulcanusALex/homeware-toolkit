@@ -53,7 +53,11 @@
       "notes": "Vodafone UK Technicolor VCNT-I / VBNT-6 (Vantiva Homeware). Driver is speculative and based on public research; no real-device verification yet. Community testing welcome.",
       "driver": "vcnt_i",
       "capabilities": {
-        "auth": {"method": "srp6", "service": "login_confirm"},
+        "auth": {
+          "method": "srp6",
+          "endpoint": "/authenticate",
+          "default_username": "vodafone"
+        },
         "wan": {"wan4_interface": "eth4", "lan6_interface": "br-lan"}
       }
     }

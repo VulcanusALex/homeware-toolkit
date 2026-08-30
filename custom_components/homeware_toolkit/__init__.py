@@ -6,6 +6,7 @@ import logging
 import os
 import shlex
 import subprocess
+from datetime import timedelta
 
 import voluptuous as vol
 
@@ -102,7 +103,11 @@ def _register_services(hass: HomeAssistant, entry: ConfigEntry) -> None:
 
 
 class HomewareDataUpdateCoordinator(DataUpdateCoordinator):
-    """Coordinator that polls the gateway over SSH."""
+    """Coordinator that polls the gateway via the homeware CLI.
+
+    Runs `doctor` (health stages) and `wanwatch` (WAN provisioning snapshot)
+    in the executor so the event loop never blocks.  Both are read-only.
+    """
 
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
         """Initialize."""
@@ -111,9 +116,55 @@ class HomewareDataUpdateCoordinator(DataUpdateCoordinator):
             hass,
             _LOGGER,
             name=DOMAIN,
-            update_interval=None,  # Manual / service-driven for now
+            update_interval=timedelta(minutes=5),
         )
 
     async def _async_update_data(self) -> dict:
         """Fetch data from the gateway."""
-        return {}
+        return await self.hass.async_add_executor_job(self._poll)
+
+    def _poll(self) -> dict:
+        base_url = self.entry.data[CONF_BASE_URL]
+        key = os.path.expanduser(self.entry.data.get(CONF_SSH_KEY, ""))
+        port = int(self.entry.data.get(CONF_SSH_PORT, 2222))
+        data: dict = {"gateway": "offline"}
+
+        doctor = _run_json(["doctor", "--key", key, "--port", str(port)],
+                           base_url)
+        if doctor is not None:
+            stages = {s["stage"]: s["status"]
+                      for s in doctor.get("stages", [])}
+            data["gateway"] = ("online" if stages.get("web-ui-compatibility")
+                               == "PASS" else "offline")
+            data["ssh_service"] = stages.get("ssh-service", "unknown")
+            data["wan_ipv4_class"] = stages.get("wan-ipv4-assignment", "")
+            data["doctor_stages"] = stages
+
+        wan = _run_json(["wanwatch", "--key", key, "--port", str(port)],
+                        base_url)
+        if wan is not None and "mode" in wan:
+            data["wan_ipv4"] = wan.get("wan_ipv4")
+            data["wan_mode"] = wan.get("mode")
+            data["wan6_up"] = wan.get("wan6_up")
+        return data
+
+
+def _run_json(argv: list, base_url: str) -> dict | None:
+    """Run `python -m homeware_toolkit --json <argv>` and parse its JSON."""
+    import json as _json
+    import sys
+
+    try:
+        proc = subprocess.run(
+            [sys.executable, "-m", "homeware_toolkit", "--json",
+             "--base-url", base_url, *argv],
+            capture_output=True, text=True, timeout=120, check=False)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        _LOGGER.warning("homeware %s failed to run: %s", argv[0], exc)
+        return None
+    try:
+        return _json.loads(proc.stdout)
+    except ValueError:
+        _LOGGER.debug("homeware %s produced no JSON (rc=%s)",
+                      argv[0], proc.returncode)
+        return None

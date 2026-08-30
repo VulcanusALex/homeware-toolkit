@@ -139,8 +139,8 @@ Only the real-hardware SSH handshake itself is out of scope.
 - **Web setup wizard**: `homeware setup --wizard` opens a local browser guide.
 - **Home Assistant**: install the HACS custom component from
   [`custom_components/homeware_toolkit/`](custom_components/homeware_toolkit/)
-  — setup notes in [docs/homeassistant.md](docs/homeassistant.md) (skeleton;
-  polling is planned).
+  — setup notes in [docs/homeassistant.md](docs/homeassistant.md); polls
+  gateway health and WAN state every 5 minutes.
 
 The toolkit is also structured as a small device-driver framework: each
 fingerprint in `compat.json` selects a driver under `homeware_toolkit/drivers/`
@@ -156,7 +156,7 @@ hardware volunteers to test speculative drivers. See
 *Hardware testing call* issue if you own a candidate device.
 
 Current speculative targets include Vodafone UK Technicolor VCNT-I/VBNT-6
-(`vcnt_i` driver). A generic `openwrt` driver also exists as a framework
+(`vcnt_i` driver, including SRP-6 password login — untested on real hardware). A generic `openwrt` driver also exists as a framework
 demonstration and edge-case fallback, but OpenWrt devices already ship with
 SSH and are not the project's focus.
 

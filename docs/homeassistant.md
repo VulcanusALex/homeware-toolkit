@@ -22,13 +22,11 @@ Copy `custom_components/homeware_toolkit/` into your Home Assistant
 
 ## Current scope
 
-This is a skeleton that provides:
+The integration provides:
 
 - Config flow with unique-id based on gateway URL.
-- Sensor entities for gateway, WAN IPv4, and WAN mode (values populated once
-  polling is wired up).
+- A polling coordinator (5-minute interval) that runs read-only
+  `doctor`/`wanwatch` snapshots and feeds sensor entities: gateway online,
+  WAN IPv4, WAN mode, SSH service posture, WAN IPv4 class.
 - A `homeware_toolkit.run_command` service that can invoke arbitrary
   homeware CLI commands.
-
-Future versions will add real-time polling of `doctor`, `wanwatch`, and
-`fw audit` outputs.

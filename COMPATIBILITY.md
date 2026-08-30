@@ -9,7 +9,7 @@ human-readable summary.
 | --- | --- | --- | --- | --- |
 | Fastweb NeXXt One (Technicolor/Vantiva FGA221D, `FGA221DFWB`) | GDNT-S | `22.2.0378_FW_058_FGA221D` | ✅ verified | maintainer's device (see README) |
 | Fastweb NeXXt One (Technicolor/Vantiva FGA221D, `FGA221DFWB`) | GDNT-S | `22.2.0378_FW_056_FGA221D` | ✅ verified | community report (see README) |
-| Vodafone UK Technicolor VCNT-I / VBNT-6 (Vantiva Homeware) | VCNT-I | — | 🧪 untested | speculative driver; see [docs/hardware-testing.md](docs/hardware-testing.md) |
+| Vodafone UK Technicolor VCNT-I / VBNT-6 (Vantiva Homeware) | VCNT-I | — | 🧪 untested | speculative driver; SRP-6 password login implemented (`session login --username vodafone --password ...`), untested on real hardware; see [docs/hardware-testing.md](docs/hardware-testing.md) |
 
 ## Status legend
 

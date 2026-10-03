@@ -47,7 +47,17 @@ def run_ping(client, host: str, settle_timeout: float = 45.0,
     endpoint polled for completion.
     """
     reader = reader or (service + "info")
-    status, data = client.set(service, host=host, state="Requested", name="ping")
+    # Transient device-side rejections: under sustained use the diagnostic
+    # backend intermittently refuses new submissions (previous diagnostic
+    # still finalising, or internal throttling). Cool down and retry
+    # instead of aborting a long transfer on a blip.
+    status, data = -1, {}
+    for _attempt in range(5):
+        status, data = client.set(service, host=host, state="Requested",
+                                  name="ping")
+        if status == 200:
+            break
+        time.sleep(20)
     if status != 200:
         return -1.0, {"submit_http": status, "submit_response": data}
     start = time.time()

@@ -14,6 +14,7 @@ class _FakeInj:
         self.dry_run = False
         self.ask_result = ask_result
         self.cmds = []
+        self.logs = []
 
     def do(self, cmd):
         self.cmds.append(cmd)
@@ -22,14 +23,20 @@ class _FakeInj:
         return self.ask_result
 
     def log(self, msg):
-        pass
+        self.logs.append(msg)
 
 
 class TransferMd5Verify(unittest.TestCase):
-    def test_md5_mismatch_raises(self):
+    def test_md5_mismatch_warns_and_continues(self):
+        # The md5 oracle is advisory only: on FGA221D hardware the
+        # md5sum|grep pipeline itself is unreliable (verified false-negative
+        # on known content), so a mismatch must not abort the flow — the
+        # caller's grep -qFx content checks and the real SSH test decide.
         inj = _FakeInj(ask_result=False)  # md5 oracle says "no match"
-        with self.assertRaises(RuntimeError):
-            transfer.assemble(inj, ["/tmp/p_000"], "/tmp/t", expect_md5="deadbeef")
+        with mock.patch.object(transfer.time, "sleep"):
+            transfer.assemble(inj, ["/tmp/p_000"], "/tmp/t",
+                              expect_md5="deadbeef")
+        self.assertTrue(any("WARNING" in line for line in inj.logs))
 
     def test_md5_match_ok(self):
         inj = _FakeInj(ask_result=True)

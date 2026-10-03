@@ -248,18 +248,25 @@ class TransferEndToEnd(GatewayCase):
             self.gateway.read_file("/tmp/nx_payload.bin")).hexdigest(),
             expect_md5)
 
-    def test_corrupted_segment_is_detected(self):
+    def test_corrupted_segment_is_flagged(self):
         self.quick_login()
         data = random.Random(7).randbytes(20)
+        logs = []
         with _fast_poll(inject_mod), \
                 mock.patch.object(inject_mod, "ORACLE_SLEEP", FAST_ORACLE_SLEEP):
-            inj = self._injector()
+            inj = Injector(self.client, log=logs.append)
             parts = transfer.push_data(inj, data, "bad")
             self.gateway.shell.fs[parts[0]] = b"X" * len(
                 self.gateway.shell.fs[parts[0]])
-            with self.assertRaisesRegex(RuntimeError, "md5 mismatch"):
+            # The md5 oracle is advisory (on FGA221D hardware it is unreliable):
+            # a mismatch logs a warning instead of raising; detection is
+            # completed by the caller's grep -qFx checks and a real SSH test.
+            # (The time patch only wraps assemble: push_data's settle sleeps
+            # must stay real or the async backend hasn't landed the writes.)
+            with mock.patch.object(transfer.time, "sleep"):
                 transfer.assemble(inj, parts, "/tmp/nx_bad.bin",
                                   expect_md5=hashlib.md5(data).hexdigest())
+        self.assertTrue(any("WARNING" in line for line in logs), logs)
 
 
 class FingerprintGuard(GatewayCase):

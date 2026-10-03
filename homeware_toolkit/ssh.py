@@ -311,8 +311,14 @@ def create_instance(inj, port: int) -> None:
     inj.do(f"uci{I}set{I}{ssh_service}.{ssh_instance}.enable=1")
     inj.do(f"uci{I}set{I}{ssh_service}.{ssh_instance}.Port={port}")
     inj.do(f"uci{I}set{I}{ssh_service}.{ssh_instance}.Interface=lan")
-    inj.do(f"uci{I}set{I}{ssh_service}.{ssh_instance}.PasswordAuth=off")
-    inj.do(f"uci{I}set{I}{ssh_service}.{ssh_instance}.RootPasswordAuth=off")
+    # FGA221D/NeXXt One: the stock dropbear init maps PasswordAuth/RootPasswordAuth
+    # to dropbear -w (root login disabled) — setting them locks root out entirely,
+    # with the server rejecting the publickey offer. Key-only access needs no
+    # options: blank passwords are refused by dropbear by default. Skip the
+    # options on devices whose capability flags the behaviour (2026-10-03 实测).
+    if not inj.device.cap("ssh", "no_password_options", default=False):
+        inj.do(f"uci{I}set{I}{ssh_service}.{ssh_instance}.PasswordAuth=off")
+        inj.do(f"uci{I}set{I}{ssh_service}.{ssh_instance}.RootPasswordAuth=off")
     inj.do(f"uci{I}commit{I}{ssh_service}")
     inj.do(f"/etc/init.d/{ssh_service}{I}restart")
     time.sleep(2)

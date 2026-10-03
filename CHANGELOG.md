@@ -3,6 +3,31 @@
 All notable changes to this project are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/), versioning is semver.
 
+## [2.2.1] - 2026-10-04
+
+All three fixes below were validated on a real FGA221D (Fastweb NeXXt One,
+FW_058) while restoring a factory-reset unit end to end.
+
+### Fixed
+- `ssh bootstrap`: on the FGA221D family the stock dropbear init maps
+  `PasswordAuth='off'`/`RootPasswordAuth='off'` to dropbear `-w` (root login
+  disabled).  Setting those options made the fresh instance reject root's
+  publickey offer outright, with no signature request and no visible cause.
+  `create_instance` now skips both options when the device capability
+  `ssh.no_password_options` is set (flagged for the `nexxt` driver in
+  `compat.json`).  Key-only access needs no options: dropbear refuses blank
+  passwords by default, so password login stays impossible.
+- `inject.run_ping`: submissions are now retried (5 attempts, 20 s cooldown)
+  when the diagnostic backend transiently refuses them.  Under sustained use
+  the backend intermittently rejects new submissions (previous diagnostic
+  still finalising, or internal throttling); one blip no longer aborts a long
+  transfer.
+- `transfer.assemble`: the end-to-end md5 check is advisory.  On this device
+  family the `md5sum | grep -q <hash>` oracle is unreliable (verified
+  false-negative against known content), so a mismatch now logs a warning
+  and lets the caller's `grep -qFx` content checks and the real SSH test
+  decide, instead of raising and aborting an otherwise successful transfer.
+
 ## [2.2.0] - 2026-08-30
 
 ### Added

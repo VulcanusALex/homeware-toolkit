@@ -106,8 +106,19 @@ host = :::::::;<condition> && sleep${IFS}8
 
 Total wall time of the request ≈ baseline (~2.3 s) + 8 s ⇒ condition true.
 Measure the baseline first with `host=127.0.0.1`. Proven patterns:
-`test -f`, `grep -q`, `wc -c <f> | grep -q '^393'`, `md5sum <f> | grep -q <hash>`,
-`netstat -tln | grep -q :2222`, `test $(id -u) -eq 0`.
+`test -f`, `grep -q`, `netstat -tln | grep -q :2222`, `test $(id -u) -eq 0`.
+
+> **⚠️ Two oracles are NOT trustworthy on this device (verified 2026-10-04 against known
+> content, both return false):** `md5sum <f> | grep -q <hash>` and
+> `wc -c <f> | grep -q '^N '`. Verify file content with `grep -qF/-qFx` probes and let a
+> real SSH test be the final verdict. Accordingly `transfer`'s end-to-end md5 check is
+> warning-only since v2.2.1 and never aborts the flow.
+>
+> Transient submission rejections (HTTP non-200 — previous diagnostic still finalising or
+> internal throttling) are normal: `run_ping` cools down and retries automatically
+> (5 × 20 s since v2.2.1). Never drive retry storms off oracle results — the oracles lie,
+> and storms fatigue the backend (everything starts getting dropped; a 10–15 min quiet
+> period recovers it).
 
 ## 5. Reliable file transfer (unified CLI: `homeware transfer`)
 
@@ -121,10 +132,17 @@ Measure the baseline first with `host=127.0.0.1`. Proven patterns:
 4. Assemble: `cat <parts> | tr '_-' '/+' | base64 -d | tee <target>`.
    - busybox `tr` treats a leading `-` as an option: use `tr '_-' '/+'`.
    - Keep each injected command short (~<200 chars); assemble in groups.
-5. Verify end-to-end with an md5 oracle.
+5. End-to-end md5 verification is **warning-only**: the `md5sum|grep` oracle is
+   unreliable on this device (see §4), so on mismatch `transfer` logs a warning
+   and continues, leaving the verdict to the caller's `grep -qFx` checks and a
+   real SSH test.
 6. Execution is **asynchronous and can be reordered/late**: a failed write may
-   land later and clobber a newer correct file (observed). Re-audit after
-   transferring.
+   land later and clobber a newer correct file (observed — including files
+   verified intact minutes earlier). Use a unique tag per transfer, use files
+   immediately after writing (write → place → test in one breath), and never
+   trust a file merely because it verified before. Segments containing bare
+   digit-colon runs (e.g. `1001:100`) are deterministically swallowed by the
+   content filter; the bisection handles them automatically.
 7. Since v1.6.0 the `--tag` and target arguments are validated against strict
    character allowlists before any segment is sent — the target must be an
    absolute path without shell metacharacters.
@@ -139,9 +157,19 @@ What `bootstrap` does (all reversible):
 2. Transfers your **RSA** public key with end-to-end verification, records the
    exact line it owns, and appends it to both authorized-key files. Existing
    keys are never overwritten.
-3. Creates a UCI dropbear instance: `enable=1`, `Port=2222`, `Interface=lan`,
-   `PasswordAuth=off`, `RootPasswordAuth=off`; commits and
-   `/etc/init.d/dropbear restart`.
+3. Creates a UCI dropbear instance: `enable=1`, `Port=2222`, `Interface=lan`;
+   commits and `/etc/init.d/dropbear restart`.
+
+> **⚠️ Never set `PasswordAuth='off'` / `RootPasswordAuth='off'` on this instance
+> (the toolkit skips them on FGA221D since v2.2.1, driven by the
+> `ssh.no_password_options` capability):** the stock dropbear init maps those
+> options to dropbear `-w` (root login disabled). The instance then rejects
+> root's publickey offer outright — no signature request, no visible error.
+> Omitting the options still yields key-only access: root's password is blank
+> and dropbear refuses blank passwords by default. If a hand-built instance
+> rejects a known-good key with `Permission denied (publickey)`, check here
+> first; a shortcut is testing the same setup on a fresh port — if it works
+> there, the port is not serving what you think it is.
 
 Why procd and not a direct `dropbear` call: manually spawned processes are
 either killed by the CGI cleanup or live in the sandboxed namespace. Only

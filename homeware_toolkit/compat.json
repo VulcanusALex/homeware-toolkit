@@ -36,7 +36,8 @@
           "instance": "nx",
           "shell": "/bin/ash",
           "original_shell": "/bin/restricted_shell",
-          "key_algorithms": ["ssh-rsa"]
+          "key_algorithms": ["ssh-rsa"],
+          "no_password_options": true
         },
         "wan": {
           "wan4_interface": "veip0_1",

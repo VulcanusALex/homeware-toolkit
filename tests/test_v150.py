@@ -90,6 +90,42 @@ class SafeSshLifecycle(unittest.TestCase):
         self.assertNotIn("cp${IFS}/etc/dropbear/authorized_keys", joined)
 
 
+class _FlagDevice:
+    """Minimal device stand-in honouring the capability seam."""
+    def __init__(self, no_password_options):
+        self._flag = no_password_options
+
+    def cap(self, section, key, default=None):
+        if section == "ssh" and key == "no_password_options":
+            return self._flag
+        return default
+
+
+class PasswordOptionCapability(unittest.TestCase):
+    """FGA221D maps PasswordAuth/RootPasswordAuth to dropbear -w (root login
+    disabled), which rejects the publickey offer outright.  The instance must
+    skip those options when the device capability flags the behaviour, and
+    keep setting them on devices where they mean what they say."""
+
+    def test_options_skipped_when_capability_set(self):
+        inj = _Inj(dry_run=True)
+        inj.device = _FlagDevice(no_password_options=True)
+        with mock.patch.object(ssh.time, "sleep"):
+            ssh.create_instance(inj, 2222)
+        joined = " ".join(inj.commands)
+        self.assertNotIn("PasswordAuth", joined)
+        self.assertIn("Port=2222", joined)
+
+    def test_options_kept_when_capability_absent(self):
+        inj = _Inj(dry_run=True)
+        inj.device = _FlagDevice(no_password_options=False)
+        with mock.patch.object(ssh.time, "sleep"):
+            ssh.create_instance(inj, 2222)
+        joined = " ".join(inj.commands)
+        self.assertIn("PasswordAuth=off", joined)
+        self.assertIn("RootPasswordAuth=off", joined)
+
+
 class DoctorNatSemantics(unittest.TestCase):
     class Client:
         def __init__(self, *_args, **_kwargs):

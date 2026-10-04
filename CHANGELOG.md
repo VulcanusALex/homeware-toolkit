@@ -3,6 +3,29 @@
 All notable changes to this project are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/), versioning is semver.
 
+## [2.3.1] - 2026-10-04
+
+### Security
+- **Critical finding, fully verified on hardware: the button-press login is
+  an authentication bypass.** A fresh session that sends
+  `login_confirm cmd=7 loginPath=1` is authenticated with **no button press
+  and no arming** — the server performs no verification; the button is
+  client-side theater.  Triple-confirmed 2026-10-04 from two independent
+  LAN sources, including cookie-vs-no-cookie session-binding tests.
+  Full advisory with reproduction, impact and vendor remediation:
+  `docs/advisory-2026-10-04-button-login-bypass.md`.
+
+### Added
+- `homeware session login` now tries the no-press path first
+  (`GatewayClient.try_no_press_login`) and falls back to the physical
+  button flow, so the toolkit keeps working if a future firmware verifies
+  the press server-side.
+
+### Changed
+- Simulator `login_confirm` confirm step de-gated to match the verified
+  device behaviour (confirm authenticates unconditionally; window
+  mechanics only affect `loginPath` reads).
+
 ## [2.3.0] - 2026-10-04
 
 ### Added

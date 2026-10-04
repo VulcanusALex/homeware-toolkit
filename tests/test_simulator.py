@@ -225,6 +225,29 @@ class PassiveButtonLogin(GatewayCase):
         self.assertFalse(self.client.is_authenticated())
 
 
+class NoPressAuthBypass(GatewayCase):
+    """Verified 2026-10-04 on real FW_058: cmd=7 loginPath=1 authenticates
+    with NO button press and NO arming — the server performs no check."""
+
+    def test_no_press_confirm_authenticates(self):
+        c = GatewayClient(self.gateway.base_url, timeout=5.0,
+                          work_dir=os.path.join(self.tmp.name, "np"))
+        self.assertFalse(c.is_authenticated())
+        self.assertTrue(c.try_no_press_login())
+        self.assertTrue(c.is_authenticated())
+        status, _ = c.get("sysinfo")
+        self.assertEqual(status, 200)
+
+    def test_bystander_session_not_authenticated(self):
+        """Per-cookie sessions: the bypass only affects the confirming one."""
+        c2 = GatewayClient(self.gateway.base_url, timeout=5.0,
+                           work_dir=os.path.join(self.tmp.name, "np2"))
+        c2.fresh_session()
+        c2.set("login_confirm", cmd=7, loginPath=1)
+        self.assertTrue(c2.is_authenticated())
+        self.assertFalse(self.client.is_authenticated())
+
+
 class SessionExpiry(GatewayCase):
     gateway_kwargs = {"session_ttl": 0.4}
 

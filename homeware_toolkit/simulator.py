@@ -1157,10 +1157,11 @@ class FakeGateway:
         authenticated from a single press), and the CONFIRMING session — not
         merely the most recent one — gets authenticated.
         """
+        # Verified 2026-10-04 on real FW_058: the confirm has NO server-side
+        # check — loginPath=1 authenticates the session unconditionally,
+        # with no press and no arming (the button is pure client-side
+        # theater).  The window mechanics only affect loginPath READS.
         with self._lock:
-            if not (self._button_pressed
-                    and time.time() - self._pressed_at < 20.0):
-                return
             session = self._sessions.get(sid or "")
             if not session:
                 return

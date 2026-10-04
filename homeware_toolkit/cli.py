@@ -318,6 +318,11 @@ def main(argv: list[str] | None = None) -> int:
                 if client.is_authenticated():
                     log("[login] already authenticated")
                     return rep.out({"authenticated": True})
+                if client.try_no_press_login():
+                    log("[login] authenticated WITHOUT button press "
+                        "(server-side check absent — auth-bypass path)")
+                    return rep.out({"authenticated": True,
+                                    "no_press": True})
                 if getattr(args, "passive", False):
                     ok = client.button_login_passive(args.wait, log=log)
                 else:

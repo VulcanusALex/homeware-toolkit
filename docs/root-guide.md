@@ -74,6 +74,20 @@ Note: `statusinfo` returns 404 on this firmware.
   `--tls-fingerprint <sha256>` on later calls to pin the certificate and
   detect a different TLS endpoint on the LAN.
 
+
+> **Security finding (verified 2026-10-04, two-session control experiment)**:
+> the login window opened by the button press is **globally visible** —
+> an unarmed session sees `loginPath=1` via `login_confirm cmd=7`, and
+> **any session may confirm it** to become authenticated (the window even
+> survives a confirm; two sessions authenticated from one press).  The arm
+> step is a UI convention, not a server requirement.  Two consequences:
+> 1) any LAN client polling cmd=7 once per second can hijack an
+> authenticated session the moment someone presses the buttons (know this
+> on networks with untrusted devices); 2) the toolkit can listen passively —
+> `homeware session login --passive` — you press whenever you like and the
+> tool grabs the window; no countdown coordination.  No press, no window:
+> the physical button remains the root of trust.
+
 ## 3. Command injection (verified on FW_058)
 
 - Endpoint: `act=nvset&service=pingstatus&host=<PAYLOAD>&state=Requested&name=ping`

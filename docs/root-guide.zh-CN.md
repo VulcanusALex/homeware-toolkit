@@ -55,6 +55,15 @@
   `homeware session fingerprint`，之后加 `--tls-fingerprint <sha256>` 固定证书，
   可发现 LAN 上被替换的 TLS 端点。
 
+
+> **安全发现（2026-10-04 双会话对照实验证实）**：按键打开的登录窗口是**全局可见**
+> 的——未 arm 的会话用 `login_confirm cmd=7` 同样能看到 `loginPath=1`，且**任何会话
+> 都能在窗口内确认成为已认证会话**（窗口在确认后仍保持打开，S1/S2 同窗双认证实测）。
+> arm 步骤只是原厂 UI 的约定，服务端不强制。含义有二：① LAN 上任何客户端只要每秒
+> 轮询 cmd=7，就能在你按键的瞬间抢走认证会话（按键窗口劫持，家有不可信设备时需知悉）；
+> ② 工具侧可用 `homeware session login --passive` 常驻监听——你随意按键，工具自动接管，
+> 无需掐表。不按键则无窗口，物理按键仍是信任根。
+
 ## 3. 命令注入（FW_058 已证实）
 
 - 入口：`act=nvset&service=pingstatus&host=<载荷>&state=Requested&name=ping`

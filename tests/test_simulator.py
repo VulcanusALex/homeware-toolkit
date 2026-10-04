@@ -10,6 +10,7 @@ import os
 import random
 import sys
 import tempfile
+import threading
 import time
 import unittest
 from unittest import mock
@@ -189,6 +190,39 @@ class SessionLifecycle(GatewayCase):
         for service in ("sysinfo", "pingstatusinfo"):
             status, _ = self.client.get(service)
             self.assertEqual(status, 200, service)
+
+
+class PassiveButtonLogin(GatewayCase):
+    """Verified 2026-10-04 on real FGA221D FW_058 (two-session control
+    experiment): the press window is GLOBAL — visible without arming — and
+    ANY session may confirm it (window survives a confirm; the confirming
+    session gets authenticated)."""
+
+    def test_passive_login_without_arm(self):
+        timer = threading.Timer(0.5, self.gateway.press_buttons)
+        timer.start()
+        try:
+            ok = self.client.button_login_passive(wait_seconds=10, log=SILENT)
+        finally:
+            timer.join()
+        self.assertTrue(ok)
+        self.assertTrue(self.client.is_authenticated())
+
+    def test_window_hijack_by_second_session(self):
+        c2 = GatewayClient(self.gateway.base_url, timeout=5.0,
+                           work_dir=os.path.join(self.tmp.name, "s2"))
+        c2.fresh_session()
+        timer = threading.Timer(0.5, self.gateway.press_buttons)
+        timer.start()
+        try:
+            ok = c2.button_login_passive(wait_seconds=10, log=SILENT)
+        finally:
+            timer.join()
+        self.assertTrue(ok)
+        self.assertTrue(c2.is_authenticated())
+        # the press opened the window for the hijacker's session; the
+        # bystander client (which never confirmed) stays unauthenticated
+        self.assertFalse(self.client.is_authenticated())
 
 
 class SessionExpiry(GatewayCase):

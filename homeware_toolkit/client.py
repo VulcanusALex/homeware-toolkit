@@ -276,6 +276,37 @@ class GatewayClient:
                 log("[login] button press detected")
         return False
 
+    def button_login_passive(self, wait_seconds: int = 300, log=print) -> bool:
+        """Passive button-window listener — NO arming step.
+
+        Verified on FGA221D FW_058 (2026-10-04, two-session control
+        experiment): the physical press opens a window that is visible to
+        EVERY session — ``login_confirm cmd=7`` returns ``loginPath=1`` for
+        sessions that never armed — and ANY session may confirm it
+        (``cmd=7 loginPath=1``) to become authenticated.  The arm step in
+        button_login() is a convention, not a server requirement.
+
+        Security note: this also means any LAN client can passively hijack
+        the window whenever someone presses the buttons (no press, no
+        session — the button remains the root of trust).
+        """
+        auth_service = self.device.cap("auth", "service", default="login_confirm")
+        self.fresh_session()
+        log(f"[login] passive listener up — press BOTH side buttons for 3s any "
+            f"time within {wait_seconds}s (no countdown)")
+        deadline = time.time() + wait_seconds
+        while time.time() < deadline:
+            _, data = self.get(auth_service, cmd=7)
+            if str(data.get(auth_service, {}).get("loginPath", "")) == "1":
+                log("[login] button press detected (passive)")
+                self.set(auth_service, cmd=7, loginPath=1)
+                time.sleep(0.5)
+                _, data = self.login_status()
+                if str(data.get(auth_service, {}).get("login_status", "")) == "1":
+                    return True
+            time.sleep(1.0)
+        return False
+
     def srp6_login(self, username: str, password: str, log=print) -> bool:
         """Vodafone-style SRP-6 password login (two-step /authenticate).
 

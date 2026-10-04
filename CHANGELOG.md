@@ -3,6 +3,32 @@
 All notable changes to this project are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/), versioning is semver.
 
+## [2.3.0] - 2026-10-04
+
+### Added
+- `homeware session login --passive`: passive button-window listener.  No
+  arming step and no countdown coordination — start it and press the
+  buttons any time within the wait window (default `--wait` 300 s).
+  Verified on real FGA221D FW_058 (2026-10-04, two-session control
+  experiment).
+
+### Security
+- Documented a login-window hijack on this device family (verified
+  experimentally): the physical press opens a window that is visible to
+  EVERY session (`login_confirm cmd=7` returns `loginPath=1` for sessions
+  that never armed) and ANY session may confirm it — the window even
+  survives a confirm, authenticating each confirming session.  The arming
+  convention in the stock UI flow is not a server-side requirement and
+  provides no protection: any LAN client passively polling cmd=7 can grab
+  an authenticated session whenever someone presses the buttons.  No press
+  → no window → the button remains the root of trust, but owners should
+  know the window is public.
+
+### Changed
+- The simulator's `login_confirm` model now matches the verified device
+  behaviour (global window, per-session confirm, window survives confirm);
+  previously it wrongly required arming.
+
 ## [2.2.2] - 2026-10-04
 
 ### Fixed

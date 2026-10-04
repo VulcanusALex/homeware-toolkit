@@ -94,6 +94,9 @@ def build_parser() -> argparse.ArgumentParser:
     sess_sub = p_sess.add_subparsers(dest="session_cmd", required=True)
     s_login = sess_sub.add_parser("login", help="button-assisted login")
     s_login.add_argument("--wait", type=int, default=60)
+    s_login.add_argument("--passive", action="store_true",
+                         help="passive button-window listener (no arming; "
+                              "press any time within the wait window)")
     s_login.add_argument("--username", default="vodafone",
                          help="SRP6 login username (Vodafone-style devices)")
     s_login.add_argument("--password",
@@ -315,7 +318,10 @@ def main(argv: list[str] | None = None) -> int:
                 if client.is_authenticated():
                     log("[login] already authenticated")
                     return rep.out({"authenticated": True})
-                ok = client.button_login(args.wait, log=log)
+                if getattr(args, "passive", False):
+                    ok = client.button_login_passive(args.wait, log=log)
+                else:
+                    ok = client.button_login(args.wait, log=log)
                 log(f"[login] authenticated={ok}")
                 return rep.out({"authenticated": ok}, 0 if ok else 1)
             if args.session_cmd == "check":

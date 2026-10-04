@@ -1059,6 +1059,7 @@ class FakeGateway:
         self._latest_sid: str | None = None
         self._armed = False
         self._button_pressed = False
+        self._pressed_at = 0.0
         self._diag_state = "None"
         self._server: ThreadingHTTPServer | None = None
         self._thread: threading.Thread | None = None
@@ -1107,10 +1108,15 @@ class FakeGateway:
         return rc, out.decode("latin-1")
 
     def press_buttons(self) -> None:
-        """Simulate the physical both-buttons-for-3s press."""
+        """Simulate the physical both-buttons-for-3s press.
+
+        Verified on real FGA221D FW_058 (2026-10-04): the press opens the
+        login window GLOBALLY — no arming required, and it stays visible to
+        every session (armed or not) for ~20 s.
+        """
         with self._lock:
-            if self._armed:
-                self._button_pressed = True
+            self._button_pressed = True
+            self._pressed_at = time.time()
 
     # ---- session handling ----
 
@@ -1144,16 +1150,23 @@ class FakeGateway:
             timer.daemon = True
             timer.start()
 
-    def _confirm_login(self) -> None:
-        """Confirm step: authenticates the most recently created session."""
+    def _confirm_login(self, sid: str | None) -> None:
+        """Confirm step: authenticates the session that sends the confirm.
+
+        Verified on real FW_058: the window survives a confirm (two sessions
+        authenticated from a single press), and the CONFIRMING session — not
+        merely the most recent one — gets authenticated.
+        """
         with self._lock:
-            if not self._button_pressed or not self._latest_sid:
+            if not (self._button_pressed
+                    and time.time() - self._pressed_at < 20.0):
                 return
-            session = self._sessions[self._latest_sid]
+            session = self._sessions.get(sid or "")
+            if not session:
+                return
             session["authenticated"] = True
             session["auth_time"] = time.time()
             self._armed = False
-            self._button_pressed = False
 
     # ---- SRP-6 password login (Vodafone-style /authenticate) ----
 
@@ -1252,8 +1265,9 @@ class FakeGateway:
                 return 200, {"login_confirm": {"login_status": state}}
             if cmd == "7":
                 with self._lock:
-                    path = "1" if self._button_pressed else "0"
-                return 200, {"login_confirm": {"loginPath": path}}
+                    open_ = (self._button_pressed
+                             and time.time() - self._pressed_at < 20.0)
+                return 200, {"login_confirm": {"loginPath": "1" if open_ else "0"}}
             return 200, {"login_confirm": {}}
         # Verified on real FW_058 hardware: every other nvget readout is
         # gated behind an authenticated session (nginx 403 otherwise), even
@@ -1287,7 +1301,7 @@ class FakeGateway:
             if params.get("loginPath") == "2":
                 self._arm_button_wait()
             elif params.get("loginPath") == "1":
-                self._confirm_login()
+                self._confirm_login(sid)
             return 200, {"login_confirm": {"result": "success"}}
         if not self._authenticated(sid):
             return 403, {"error": "session required"}

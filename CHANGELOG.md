@@ -3,6 +3,23 @@
 All notable changes to this project are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/), versioning is semver.
 
+## [2.2.2] - 2026-10-04
+
+### Fixed
+- **Security**: a `ssh bootstrap`-created instance must never run with a
+  blank root password.  Correction of the v2.2.1 analysis: on FGA221D FW_058
+  *every* restrictive dropbear flag (`-s`, `-g`, `-w`) disables root login
+  entirely (verified by per-flag instances on separate ports — all rejected
+  root key auth, while a flag-less instance accepted it), so instances must
+  stay flag-less and `no_password_options` now documents the full matrix.
+  But flag-less also means password auth is on, and the factory root
+  password is blank — a LAN-wide root hole that logread exposes as
+  `Auth succeeded with blank password`.  New `homeware ssh harden`
+  subcommand: checks `/etc/shadow` over SSH and, when blank, generates a
+  strong password, applies it via `chpasswd`, and stores it locally at
+  `~/.homeware-toolkit/root_password.txt` (0600).  `ssh bootstrap --test`
+  now runs it automatically after a successful handshake.
+
 ## [2.2.1] - 2026-10-04
 
 All three fixes below were validated on a real FGA221D (Fastweb NeXXt One,

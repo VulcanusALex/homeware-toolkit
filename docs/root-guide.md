@@ -160,16 +160,20 @@ What `bootstrap` does (all reversible):
 3. Creates a UCI dropbear instance: `enable=1`, `Port=2222`, `Interface=lan`;
    commits and `/etc/init.d/dropbear restart`.
 
-> **⚠️ Never set `PasswordAuth='off'` / `RootPasswordAuth='off'` on this instance
-> (the toolkit skips them on FGA221D since v2.2.1, driven by the
-> `ssh.no_password_options` capability):** the stock dropbear init maps those
-> options to dropbear `-w` (root login disabled). The instance then rejects
-> root's publickey offer outright — no signature request, no visible error.
-> Omitting the options still yields key-only access: root's password is blank
-> and dropbear refuses blank passwords by default. If a hand-built instance
-> rejects a known-good key with `Permission denied (publickey)`, check here
-> first; a shortcut is testing the same setup on a fresh port — if it works
-> there, the port is not serving what you think it is.
+> **⚠️ Never set `PasswordAuth` / `RootPasswordAuth` / `RootLogin` on this
+> instance (the toolkit skips them on FGA221D since v2.2.1, driven by the
+> `ssh.no_password_options` capability):** on FW_058 *every* restrictive
+> dropbear flag — `-s`, `-g`, `-w` — disables root login ENTIRELY (verified
+> 2026-10-04 with per-flag instances on separate ports: all rejected root's
+> publickey; a flag-less instance accepted it). But a flag-less instance also
+> means password auth is ON with the factory-blank root password — **anyone
+> on the LAN can then log in as root with an empty password** (`logread`
+> shows `Auth succeeded with blank password`). Always run `homeware ssh
+> harden` afterwards (bootstrap --test does it automatically): it replaces a
+> blank root password with a generated one stored locally (0600). Key login
+> stays primary; the password is the documented fallback. Key-rejection
+> checklist: exact root line in /etc/passwd (async replays corrupt it),
+> permissions, tile-probed authorized_keys, THEN instance flags.
 
 Why procd and not a direct `dropbear` call: manually spawned processes are
 either killed by the CGI cleanup or live in the sandboxed namespace. Only

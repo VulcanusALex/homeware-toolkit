@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import stat
 import tempfile
 import unittest
 import zipfile
@@ -124,6 +125,47 @@ class PasswordOptionCapability(unittest.TestCase):
         joined = " ".join(inj.commands)
         self.assertIn("PasswordAuth=off", joined)
         self.assertIn("RootPasswordAuth=off", joined)
+
+
+class HardenRootPassword(unittest.TestCase):
+    def test_blank_password_is_replaced_and_stored_0600(self):
+        calls = []
+
+        def fake_ssh_run(host, port, key, cmd, timeout=30,
+                         verify_host_key=True):
+            calls.append(cmd)
+            class P:
+                returncode = 0
+                stdout = ""
+                stderr = ""
+            if "chpasswd" not in cmd:
+                P.stdout = "BLANK" if len(calls) == 1 else "SET"
+            return P()
+
+        tmpdir = tempfile.mkdtemp()
+        with mock.patch.object(ssh, "ssh_run", side_effect=fake_ssh_run):
+            result = ssh.harden_root_password("h", 2222, "k",
+                                              work_dir=tmpdir, log=lambda m: None)
+        self.assertTrue(result["blank_before"] and result["password_set"])
+        path = result["password_path"]
+        self.assertTrue(os.path.exists(path))
+        self.assertEqual(stat.S_IMODE(os.stat(path).st_mode), 0o600)
+        with open(path) as fh:
+            content = fh.read()
+        self.assertIn("password:", content)
+        # probe -> apply -> verify sequence
+        self.assertEqual(len(calls), 3)
+
+    def test_already_set_is_noop(self):
+        class P:
+            returncode = 0
+            stdout = "SET"
+            stderr = ""
+        with mock.patch.object(ssh, "ssh_run", return_value=P()):
+            result = ssh.harden_root_password("h", 2222, "k",
+                                              work_dir=tempfile.mkdtemp(),
+                                              log=lambda m: None)
+        self.assertFalse(result["blank_before"])
 
 
 class DoctorNatSemantics(unittest.TestCase):

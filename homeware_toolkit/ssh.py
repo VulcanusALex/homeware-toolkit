@@ -87,6 +87,49 @@ def ssh_run(host: str, port: int, key: str, remote_cmd: str,
         capture_output=True, text=True, timeout=timeout, check=False)
 
 
+def harden_root_password(host: str, port: int, privkey: str,
+                         work_dir: str = "~/.homeware-toolkit",
+                         log=print) -> dict:
+    """Close the blank-root-password hole over the (now working) SSH channel.
+
+    On this device family every restrictive dropbear flag (-s/-g/-w) disables
+    root login ENTIRELY, so instances must run flag-less — which leaves root
+    with its factory-blank password reachable LAN-wide (password auth is on).
+    The only sound configuration is a flag-less instance plus a real root
+    password.  This helper checks /etc/shadow over SSH; if the field is blank
+    it generates a strong password, applies it with chpasswd and stores it
+    locally with mode 0600 (never in docs/git).
+    """
+    import secrets
+    probe = ssh_run(host, port, privkey,
+                    "grep -q '^root::' /etc/shadow && echo BLANK || echo SET")
+    blank = "BLANK" in probe.stdout
+    if not blank:
+        log("[harden] root password already set; nothing to do")
+        return {"blank_before": False, "password_set": False}
+    password = secrets.token_urlsafe(18)
+    apply_cmd = "echo 'root:%s' | chpasswd" % password
+    proc = ssh_run(host, port, privkey, apply_cmd)
+    if proc.returncode != 0:
+        raise RuntimeError(f"chpasswd failed: {proc.stderr.strip()}")
+    verify = ssh_run(host, port, privkey,
+                     "grep -q '^root::' /etc/shadow && echo BLANK || echo SET")
+    if "BLANK" in verify.stdout:
+        raise RuntimeError("chpasswd reported success but shadow still blank")
+    path = os.path.expanduser(os.path.join(work_dir,
+                                           "root_password.txt"))
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as fh:
+        fh.write("root password set by homeware-toolkit harden\n"
+                 f"date: {time.strftime('%Y-%m-%d %H:%M:%S')}\n"
+                 f"host: {host}:{port}\n"
+                 f"password: {password}\n")
+    log(f"[harden] blank root password replaced; stored at {path} (0600)")
+    return {"blank_before": True, "password_set": True,
+            "password_path": path}
+
+
 # ---- pluggable command transport -------------------------------------
 #
 # Every SSH-data-plane feature (fw/apply/vpn/doctor --key/...) shells out to
@@ -311,11 +354,13 @@ def create_instance(inj, port: int) -> None:
     inj.do(f"uci{I}set{I}{ssh_service}.{ssh_instance}.enable=1")
     inj.do(f"uci{I}set{I}{ssh_service}.{ssh_instance}.Port={port}")
     inj.do(f"uci{I}set{I}{ssh_service}.{ssh_instance}.Interface=lan")
-    # FGA221D/NeXXt One: the stock dropbear init maps PasswordAuth/RootPasswordAuth
-    # to dropbear -w (root login disabled) — setting them locks root out entirely,
-    # with the server rejecting the publickey offer. Key-only access needs no
-    # options: blank passwords are refused by dropbear by default. Skip the
-    # options on devices whose capability flags the behaviour (2026-10-03 实测).
+    # On this device family EVERY restrictive dropbear flag disables root
+    # login entirely — verified 2026-10-04 on FGA221D FW_058 by starting
+    # -s/-g/-w instances on separate ports and attempting root key login
+    # against each: all denied (a flag-less instance accepted the same key).
+    # So PasswordAuth/RootPasswordAuth/RootLogin must all stay ABSENT, which
+    # also means password auth stays on with the factory-blank root password
+    # — a LAN-wide root hole until 'homeware ssh harden' sets a real one.
     if not inj.device.cap("ssh", "no_password_options", default=False):
         inj.do(f"uci{I}set{I}{ssh_service}.{ssh_instance}.PasswordAuth=off")
         inj.do(f"uci{I}set{I}{ssh_service}.{ssh_instance}.RootPasswordAuth=off")

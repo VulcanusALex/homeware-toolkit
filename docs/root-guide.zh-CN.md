@@ -122,13 +122,17 @@ host = :::::::;<条件> && sleep${IFS}8
 3. 创建 UCI dropbear 实例：`enable=1`、`Port=2222`、`Interface=lan`；提交并
    `/etc/init.d/dropbear restart`。
 
-> **⚠️ 不要给这个实例设 `PasswordAuth='off'` / `RootPasswordAuth='off'`（v2.2.1 起
-> 工具在 FGA221D 上自动跳过这两项）**：出厂 dropbear init 脚本把这两个选项映射为
-> dropbear `-w`（禁止 root 登录），实例会直接在公钥报价阶段拒绝 root、且不要求签名、
-> 没有任何可见报错。不设这两个选项反而恰好是纯密钥登录：root 密码为空、而 dropbear
-> 默认拒绝空密码，密码登录实际不可能。若你手动建了实例却遇到"key 明明对却
-> Permission denied (publickey)"，先查这里；排查捷径是把实例换到干净端口验证——
-> 能通就是端口被别的配置影响，不通才是 key/账户问题。
+> **⚠️ 不要给这个实例设 `PasswordAuth` / `RootPasswordAuth` / `RootLogin`（v2.2.1 起
+> 工具在 FGA221D 上自动跳过）**：2026-10-04 逐标志对照实验（三个端口分别起 -s/-g/-w
+> 实例）证实——本固件上**任何**限制标志（`-s`/`-g`/`-w` 全部）都会**整体禁用
+> root 登录**（公钥报价阶段直接拒绝），不是标准语义。但实例不设标志 = 密码登录
+> 开着 + 出厂 root 密码为空 = **LAN 内任何人可空密码登录 root**（logread 会留下
+> `Auth succeeded with blank password`）。所以正确姿势是：实例不带标志 + **必须
+> 立刻运行 `homeware ssh harden`**（bootstrap --test 会自动跑）：它检测空密码并生成
+> 强随机密码经 chpasswd 写入，本地以 0600 保存。密钥仍是主登录方式，密码是
+> 文档化回退。遇到"key 明明对却 Permission denied (publickey)"按序排查：
+> /etc/passwd root 行是否被异步重放改坏（本次真凶，多次复发）→ 文件权限 →
+> 平铺探针验证 authorized_keys 完整性 → 最后才怀疑实例标志。
 
 为什么必须走 procd：手动起的进程要么被 CGI 清理杀掉、要么活在隔离命名空间，
 只有 procd 管的服务才可达。

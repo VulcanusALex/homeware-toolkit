@@ -140,6 +140,11 @@ def build_parser() -> argparse.ArgumentParser:
     s_down.add_argument("--port", type=int, default=2222)
     s_down.add_argument("--legacy-force", action="store_true",
                         help="use old destructive cleanup only for confirmed <=1.4.0 installs")
+    s_harden = ssh_sub.add_parser(
+        "harden", help="replace a blank root password (closes the LAN hole)")
+    s_harden.add_argument("--key", required=True)
+    s_harden.add_argument("--port", type=int, default=2222)
+    s_harden.add_argument("--work-dir", default="~/.homeware-toolkit")
 
     p_fw = sub.add_parser("fw", help="precise firewall pinholes (over SSH)")
     fw_sub = p_fw.add_subparsers(dest="fw_cmd", required=True)
@@ -377,7 +382,16 @@ def main(argv: list[str] | None = None) -> int:
                               file=sys.stderr)
                         return rep.out({"bootstrap": True, "handshake": False}, 1)
                     log("[ssh] handshake OK")
+                    harden = ssh_mod.harden_root_password(
+                        host, args.port, priv, log=log)
+                    return rep.out({"bootstrap": True, "harden": harden})
                 return rep.out({"bootstrap": True})
+            if args.ssh_cmd == "harden":
+                priv = args.key
+                result = ssh_mod.harden_root_password(
+                    host_of(args.base_url), args.port, priv,
+                    work_dir=args.work_dir, log=log)
+                return rep.out({"harden": result})
             if args.ssh_cmd == "status":
                 inj = Injector(make_client(), force=True, log=log)
                 st = ssh_mod.status(inj, args.port)
